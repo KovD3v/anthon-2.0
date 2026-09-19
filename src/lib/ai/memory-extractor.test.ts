@@ -105,6 +105,43 @@ describe("ai/memory-extractor", () => {
     });
   });
 
+  it("retains a supported temporary event and its literal date for server resolution", async () => {
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "study_exam",
+            value: "Esame domani",
+            category: "schedule",
+            confidence: 0.95,
+            sensitivity: "LOW",
+            origin: "EXPLICIT",
+            explicitSetting: false,
+            durability: "TEMPORARY",
+            expiry: { expression: "domani", timeZone: null },
+            evidence: "Ho un esame domani",
+            subject: "ACCOUNT_HOLDER",
+            subjectName: null,
+            subjectRelationship: null,
+          },
+        ],
+      }),
+      usage: {},
+      providerMetadata: {},
+    });
+    const facts = await extractMemoryCandidates({
+      userId: "user-1",
+      userText: "Ho un esame domani e voglio prepararmi.",
+      assistantText: "Prepariamo un piano.",
+    });
+    expect(facts).toEqual([
+      expect.objectContaining({
+        durability: "TEMPORARY",
+        expiry: { expression: "domani", timeZone: null },
+      }),
+    ]);
+  });
+
   it("rejects a candidate whose evidence is absent from the user message", async () => {
     mocks.generateText.mockResolvedValue({
       text: JSON.stringify({

@@ -93,6 +93,21 @@ describe("maintenance/memory-consolidation", () => {
     expect(mocks.rememberFact).not.toHaveBeenCalled();
   });
 
+  it("does not merge temporary facts into durable memory", async () => {
+    mocks.listActiveFacts.mockResolvedValue({
+      degraded: false,
+      facts: buildMemories(5).map((fact) => ({
+        ...fact,
+        expiresAt: new Date("2099-10-24T18:00:00Z"),
+      })),
+    });
+    await consolidateMemories("user-1");
+    expect(mocks.generateText).not.toHaveBeenCalled();
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.reviseFact).not.toHaveBeenCalled();
+    expect(mocks.forgetFact).not.toHaveBeenCalled();
+  });
+
   it("returns without mutations when the model finds no consolidations", async () => {
     mocks.generateText.mockResolvedValue({
       usage: { inputTokens: 40, outputTokens: 5 },

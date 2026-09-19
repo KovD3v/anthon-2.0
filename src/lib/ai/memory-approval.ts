@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { invalidateFactCache, rememberFactInTransaction } from "./memory-facts";
@@ -57,6 +58,19 @@ type PendingApprovalRow = {
 
 export type PendingMemoryApproval = PendingApprovalRow;
 
+const approvalFactSchema = z.object({
+  content: z.string().trim().min(1),
+  observedAt: z.iso.datetime().optional(),
+  expiresAt: z.iso.datetime().nullable().optional(),
+});
+
+function approvalFact(value: unknown) {
+  // Requests already presented before expiry support retain their string format.
+  if (typeof value === "string") return { content: value };
+  const result = approvalFactSchema.safeParse(value);
+  return result.success ? result.data : null;
+}
+
 function toPendingMemoryApproval(
   approval: PendingApprovalRow,
 ): PendingMemoryApproval {
@@ -65,7 +79,7 @@ function toPendingMemoryApproval(
     userId: approval.userId,
     sourceInboundMessageId: approval.sourceInboundMessageId,
     key: approval.key,
-    value: approval.value,
+    value: approvalFact(approval.value)?.content ?? approval.value,
     category: approval.category,
     confidence: approval.confidence,
     expiresAt: approval.expiresAt,
@@ -100,11 +114,35 @@ export async function createMemoryApproval(input: {
   value: unknown;
   category: string;
   confidence: number;
+  observedAt?: Date;
+  memoryExpiresAt?: Date | null;
 }): Promise<PendingMemoryApproval> {
   assertApprovalInput(input);
-  const value = toInputJsonValue(input.value);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + MEMORY_APPROVAL_TTL_MS);
+  if (
+    input.memoryExpiresAt &&
+    (!Number.isFinite(input.memoryExpiresAt.getTime()) ||
+      input.memoryExpiresAt <= now)
+  ) {
+    throw new Error("Cannot request approval for an expired fact");
+  }
+  const value = toInputJsonValue(
+    input.memoryExpiresAt !== undefined || input.observedAt
+      ? {
+          content: input.value,
+          observedAt: input.observedAt?.toISOString(),
+          ...(input.memoryExpiresAt !== undefined
+            ? { expiresAt: input.memoryExpiresAt?.toISOString() ?? null }
+            : {}),
+        }
+      : input.value,
+  );
+  const expiresAt = new Date(
+    Math.min(
+      now.getTime() + MEMORY_APPROVAL_TTL_MS,
+      input.memoryExpiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+    ),
+  );
 
   return prisma.$transaction(async (tx) => {
     const sourceInboundMessage = await tx.message.findFirst({
@@ -456,8 +494,16 @@ export async function resolveMemoryApproval(input: {
       select: resolvableApprovalSelect,
     });
     if (!approval) return { status: "stale" as const };
+    const fact = approvalFact(approval.value);
+    const memoryExpiresAt =
+      fact && "expiresAt" in fact && fact.expiresAt
+        ? new Date(fact.expiresAt)
+        : null;
 
-    if (approval.expiresAt <= now) {
+    if (
+      approval.expiresAt <= now ||
+      (memoryExpiresAt && memoryExpiresAt <= now)
+    ) {
       await tx.memoryApproval.updateMany({
         where: {
           id: input.approvalId,
@@ -474,7 +520,7 @@ export async function resolveMemoryApproval(input: {
     if (
       !approval.presentationInboundMessageId ||
       !approval.presentationAssistantMessageId ||
-      typeof approval.value !== "string" ||
+      !fact ||
       !presentationInbound?.conversationThreadId ||
       presentationInbound.userId !== input.userId ||
       presentationInbound.direction !== "INBOUND" ||
@@ -561,7 +607,7 @@ export async function resolveMemoryApproval(input: {
     const memory = await rememberFactInTransaction(tx, {
       userId: input.userId,
       key: approval.key,
-      value: approval.value,
+      value: fact.content,
       category: approval.category,
       confidence: approval.confidence,
       sensitivity: "HIGH",
@@ -570,6 +616,10 @@ export async function resolveMemoryApproval(input: {
       revisionSourceMessageId: currentMessage.id,
       sourceThreadId: presentationInbound.conversationThreadId,
       dedupeKey: `approval:${approval.id}`,
+      ...("observedAt" in fact && fact.observedAt
+        ? { observedAt: new Date(fact.observedAt) }
+        : {}),
+      ...("expiresAt" in fact ? { expiresAt: memoryExpiresAt } : {}),
     });
     if (
       (memory.status !== "saved" && memory.status !== "duplicate") ||

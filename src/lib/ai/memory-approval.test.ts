@@ -392,6 +392,91 @@ describe("ai/memory-approval", () => {
     expect(mocks.memoryApprovalFindFirst).not.toHaveBeenCalled();
   });
 
+  it("stores a sensitive fact's expiry separately from the approval TTL and keeps its public value readable", async () => {
+    mocks.messageFindFirst.mockResolvedValueOnce(sourceMessage);
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce(null);
+    mocks.memoryApprovalCreate.mockImplementation(async ({ data }) => ({
+      id: "approval-1",
+      ...data,
+    }));
+    const memoryExpiresAt = new Date("2026-08-09T18:05:00Z");
+    const result = await createMemoryApproval({
+      userId: "user-1",
+      sourceInboundMessageId: "inbound-source",
+      key: "medical_review",
+      value: "Controllo alle 20:05",
+      category: "health",
+      confidence: 1,
+      observedAt: sourceMessage.createdAt,
+      memoryExpiresAt,
+    });
+    expect(result.value).toBe("Controllo alle 20:05");
+    expect(result.expiresAt).toEqual(memoryExpiresAt);
+    expect(mocks.memoryApprovalCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        value: {
+          content: "Controllo alle 20:05",
+          observedAt: sourceMessage.createdAt.toISOString(),
+          expiresAt: memoryExpiresAt.toISOString(),
+        },
+      }),
+      select: expect.any(Object),
+    });
+  });
+
+  it.each([null, new Date("2026-08-10T18:00:00Z")])(
+    "propagates the confirmed fact's original observation time and replacement expiry",
+    async (expiresAt) => {
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+        ...pendingApproval,
+        value: {
+          content: pendingApproval.value,
+          observedAt: sourceMessage.createdAt.toISOString(),
+          expiresAt: expiresAt?.toISOString() ?? null,
+        },
+      });
+      mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+      mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
+      expect(
+        await resolveMemoryApproval({
+          userId: "user-1",
+          approvalId: "approval-1",
+          decision: "approve",
+          currentUserMessageId: "inbound-current",
+        }),
+      ).toEqual({ status: "approved", memoryId: "memory-1" });
+      expect(mocks.rememberFactInTransaction).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          value: pendingApproval.value,
+          observedAt: sourceMessage.createdAt,
+          expiresAt,
+          sensitivity: "HIGH",
+          origin: "CONFIRMED",
+        }),
+      );
+    },
+  );
+
+  it("never approves a fact whose own expiry has passed while the approval is pending", async () => {
+    mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+      ...pendingApproval,
+      value: { content: pendingApproval.value, expiresAt: now.toISOString() },
+    });
+    expect(
+      await resolveMemoryApproval({
+        userId: "user-1",
+        approvalId: "approval-1",
+        decision: "approve",
+        currentUserMessageId: "inbound-current",
+      }),
+    ).toEqual({ status: "stale" });
+    expect(mocks.rememberFactInTransaction).not.toHaveBeenCalled();
+    expect(mocks.memoryApprovalUpdateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: "EXPIRED", resolvedAt: now } }),
+    );
+  });
+
   it("atomically approves exactly one stable key for the immediate explicit confirmation", async () => {
     mocks.memoryApprovalFindFirst.mockResolvedValueOnce(pendingApproval);
     mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);

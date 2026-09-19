@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   tool: vi.fn(),
@@ -53,6 +53,7 @@ describe("ai/tools/user-context", () => {
     mocks.profileUpsert.mockReset();
     mocks.preferencesUpsert.mockReset();
   });
+  afterEach(() => vi.useRealTimers());
 
   it("getUserContext returns user profile and preferences", async () => {
     const userId = "user-ctx-1";
@@ -301,6 +302,30 @@ describe("ai/tools/user-context", () => {
     expect(first).not.toContain("Snapshot User");
     expect(first).not.toContain("Long private note");
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it("bounds the tiny snapshot cache by memory expiry and carries the original date anchor", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
+    const row = {
+      preferenceLanguage: "it",
+      memoryKey: "work_deadline",
+      memoryValue: { content: "Consegna domani" },
+      memoryObservedAt: new Date("2026-09-18T10:00:00Z"),
+      memoryExpiresAt: new Date("2026-09-19T12:00:05Z"),
+    };
+    mocks.queryRaw.mockResolvedValue([row]);
+    const first = await formatTinyUserSnapshotForPrompt("expiring-tiny");
+    expect(first).toContain("Consegna domani");
+    expect(first).toContain("2026-09-18T10:00:00.000Z");
+    const query = mocks.queryRaw.mock.calls[0][0].strings.join("");
+    expect(query).toContain("m.\"status\" = 'ACTIVE'");
+    expect(query).toContain('m."expiresAt" > NOW()');
+    vi.advanceTimersByTime(5_000);
+    expect(
+      await formatTinyUserSnapshotForPrompt("expiring-tiny"),
+    ).not.toContain("Consegna");
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it("formatTinyUserSnapshotForPrompt includes compact saved memories for first-turn personalization", async () => {

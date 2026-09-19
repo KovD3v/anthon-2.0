@@ -50,6 +50,7 @@ export type RecalledFact = {
   confidence: number;
   observedAt: Date;
   updatedAt: Date;
+  expiresAt: Date | null;
 };
 
 export type FactMutationInput = {
@@ -88,6 +89,7 @@ function projectFact(memory: {
   confidence: number;
   observedAt: Date;
   updatedAt: Date;
+  expiresAt: Date | null;
 }): RecalledFact | null {
   const value = memory.value as StoredMemoryValue;
   if (typeof value.content !== "string" || !value.content.trim()) return null;
@@ -101,12 +103,17 @@ function projectFact(memory: {
     confidence: memory.confidence,
     observedAt: memory.observedAt,
     updatedAt: memory.updatedAt,
+    expiresAt: memory.expiresAt,
   };
 }
 
 async function loadFactSnapshot(userId: string, now: Date) {
   const cached = factCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached.facts;
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.facts.filter(
+      (fact) => !fact.expiresAt || fact.expiresAt > now,
+    );
+  }
   const generation = factCacheGeneration;
 
   const memories = await prisma.memory.findMany({
@@ -126,6 +133,7 @@ async function loadFactSnapshot(userId: string, now: Date) {
       confidence: true,
       observedAt: true,
       updatedAt: true,
+      expiresAt: true,
     },
   });
   const facts = memories.flatMap((memory) => {
@@ -138,7 +146,7 @@ async function loadFactSnapshot(userId: string, now: Date) {
       expiresAt: Date.now() + FACT_CACHE_TTL_MS,
     });
   }
-  return facts;
+  return facts.filter((fact) => !fact.expiresAt || fact.expiresAt > now);
 }
 
 function queryTokens(value: string) {
@@ -288,6 +296,12 @@ function storedValue(
 function canonicalFactInput(
   input: FactMutationInput,
 ): FactMutationInput | null {
+  if (
+    input.expiresAt &&
+    (!Number.isFinite(input.expiresAt.getTime()) ||
+      input.expiresAt <= new Date())
+  )
+    return null;
   const candidate = canonicalizeKnowledgeCandidate({
     key: input.key,
     value: input.value,
@@ -313,6 +327,8 @@ export async function rememberFactInTransaction(
   }
 
   await lockMemoryMutations(transaction, input.userId);
+  if (input.expiresAt && input.expiresAt <= new Date())
+    return { status: "rejected" };
 
   const duplicate = await transaction.memoryRevision.findUnique({
     where: { dedupeKey: input.dedupeKey },
@@ -332,6 +348,9 @@ export async function rememberFactInTransaction(
     previous.sourceMessageId === input.sourceMessageId &&
     previous.category === input.category &&
     previous.sensitivity === input.sensitivity &&
+    (input.expiresAt === undefined ||
+      (previous.expiresAt?.getTime() ?? null) ===
+        (input.expiresAt?.getTime() ?? null)) &&
     (input.origin !== "CONFIRMED" || previous.origin === "CONFIRMED") &&
     (previous.value as StoredMemoryValue)?.content === input.value.trim()
   ) {
@@ -366,7 +385,7 @@ export async function rememberFactInTransaction(
       sourceMessageId: input.sourceMessageId,
       sourceThreadId: input.sourceThreadId,
       observedAt: input.observedAt ?? new Date(),
-      expiresAt: input.expiresAt,
+      expiresAt: input.expiresAt ?? null,
       ...(input.origin === "CONFIRMED" ? { lastConfirmedAt: new Date() } : {}),
     },
     select: { id: true },
@@ -418,6 +437,8 @@ export async function reviseFact(
   try {
     const result = await prisma.$transaction(async (transaction) => {
       await lockMemoryMutations(transaction, input.userId);
+      if (input.expiresAt && input.expiresAt <= new Date())
+        return { status: "rejected" } as const;
       const duplicate = await transaction.memoryRevision.findUnique({
         where: { dedupeKey: input.dedupeKey },
         select: { memoryId: true },

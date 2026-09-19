@@ -2,6 +2,11 @@ import { MEMORY } from "@/lib/ai/constants";
 import { createMemoryApproval } from "@/lib/ai/memory-approval";
 import { canonicalizeKnowledgeCandidate } from "@/lib/ai/memory-canonicalization";
 import {
+  knownMemoryTimeZone,
+  messageTimeZone,
+  resolveMemoryExpiry,
+} from "@/lib/ai/memory-expiry";
+import {
   extractMemoryCandidates,
   type MemoryCandidate,
 } from "@/lib/ai/memory-extractor";
@@ -50,7 +55,8 @@ function hasUserEvidence(userText: string, evidence: string) {
 function isEligibleCandidate(candidate: MemoryCandidate, userText: string) {
   return (
     candidate.confidence >= MEMORY.MIN_CONFIDENCE &&
-    candidate.durability === "DURABLE" &&
+    candidate.durability !== "TRANSIENT" &&
+    !(candidate.durability === "DURABLE" && candidate.expiry) &&
     hasUserEvidence(userText, candidate.evidence)
   );
 }
@@ -108,7 +114,7 @@ export async function consolidateTurnMemory(input: {
         ? { conversationThreadId: input.conversationThreadId }
         : {}),
     },
-    select: { id: true },
+    select: { id: true, createdAt: true, metadata: true },
   });
   if (!sourceMessage) return emptyReport;
 
@@ -127,6 +133,12 @@ export async function consolidateTurnMemory(input: {
     approvalsCreated: 0,
     rejected: 0,
   };
+  const timeZone = candidates.some(
+    (candidate) => candidate.durability === "TEMPORARY",
+  )
+    ? (messageTimeZone(sourceMessage.metadata) ??
+      (await knownMemoryTimeZone(input.userId)))
+    : null;
 
   for (const candidate of candidates) {
     if (!isEligibleCandidate(candidate, input.userText)) {
@@ -139,9 +151,25 @@ export async function consolidateTurnMemory(input: {
       : null;
     if (
       !canonical ||
+      (candidate.durability === "TEMPORARY" &&
+        canonical.destination !== "memory") ||
       (input.memoryOnly && canonical.destination !== "memory") ||
       (canonical.destination === "preferences" && !candidate.explicitSetting)
     ) {
+      report.rejected += 1;
+      continue;
+    }
+
+    const expiresAt =
+      candidate.durability === "TEMPORARY" && candidate.expiry
+        ? resolveMemoryExpiry({
+            expiry: candidate.expiry,
+            sourceText: input.userText,
+            observedAt: sourceMessage.createdAt,
+            timeZone,
+          })
+        : null;
+    if (candidate.durability === "TEMPORARY" && !expiresAt) {
       report.rejected += 1;
       continue;
     }
@@ -158,6 +186,8 @@ export async function consolidateTurnMemory(input: {
           value: canonical.value,
           category: canonical.category,
           confidence: candidate.confidence,
+          observedAt: sourceMessage.createdAt,
+          memoryExpiresAt: expiresAt,
         });
         report.approvalsCreated += 1;
         continue;
@@ -189,6 +219,8 @@ export async function consolidateTurnMemory(input: {
         sourceMessageId: input.inboundMessageId,
         sourceThreadId: input.conversationThreadId,
         dedupeKey: `memory:${input.inboundMessageId}:${canonical.key}`,
+        observedAt: sourceMessage.createdAt,
+        expiresAt,
       });
       if (result.status === "saved") report.persisted += 1;
       else if (result.status !== "duplicate") report.rejected += 1;

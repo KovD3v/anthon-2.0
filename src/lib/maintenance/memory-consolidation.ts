@@ -59,7 +59,8 @@ const ConsolidatedMemoriesSchema = z.object({
 export async function consolidateMemories(userId: string): Promise<void> {
   const activeFacts = await listActiveFacts({ userId, limit: 64 });
   if (activeFacts.degraded) return;
-  const memories = activeFacts.facts;
+  // Temporary facts retain their own expiry and must not become permanent merges.
+  const memories = activeFacts.facts.filter((fact) => !fact.expiresAt);
 
   if (memories.length < 5) {
     // Too few memories to consolidate

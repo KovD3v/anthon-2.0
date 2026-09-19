@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { formatMemoryValidity } from "@/lib/ai/memory-expiry";
 import {
   updateCanonicalPreferences,
   updateCanonicalProfile,
@@ -41,6 +42,8 @@ type PromptUserRow = {
   preferenceLanguage: string | null;
   memoryKey?: string | null;
   memoryValue?: Prisma.JsonValue | null;
+  memoryExpiresAt?: Date | null;
+  memoryObservedAt?: Date;
 };
 
 const USER_CONTEXT_PROMPT_CACHE_TTL_MS = 30 * 1000; // 30s
@@ -90,14 +93,18 @@ async function loadPromptUserContext(
       pref."mode" AS "preferenceMode",
       pref."language" AS "preferenceLanguage",
       memory."key" AS "memoryKey",
-      memory."value" AS "memoryValue"
+      memory."value" AS "memoryValue",
+      memory."expiresAt" AS "memoryExpiresAt",
+      memory."observedAt" AS "memoryObservedAt"
     FROM "User" u
     LEFT JOIN "Profile" p ON p."userId" = u."id"
     LEFT JOIN "Preferences" pref ON pref."userId" = u."id"
     LEFT JOIN LATERAL (
-      SELECT m."key", m."value"
+      SELECT m."key", m."value", m."expiresAt", m."observedAt"
       FROM "Memory" m
       WHERE m."userId" = u."id"
+        AND m."status" = 'ACTIVE'
+        AND (m."expiresAt" IS NULL OR m."expiresAt" > NOW())
         AND m."category" IN (
           'identity', 'sport', 'goal', 'preference', 'schedule'
         )
@@ -451,6 +458,7 @@ export async function formatTinyUserSnapshotForPrompt(
   if (existing) return existing;
 
   const generation = getTinyUserSnapshotGeneration(userId);
+  let expiresAt = Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS;
   const promise = loadPromptUserContext(userId, true)
     .then((rows) => {
       const [firstRow] = rows;
@@ -480,10 +488,15 @@ export async function formatTinyUserSnapshotForPrompt(
       }
       for (const row of rows) {
         if (!row.memoryKey) continue;
+        if (row.memoryExpiresAt && row.memoryExpiresAt <= new Date()) continue;
         const value = row.memoryValue as CompactMemoryValue | null | undefined;
         if (typeof value?.content === "string" && value.content.trim()) {
+          expiresAt = Math.min(
+            expiresAt,
+            row.memoryExpiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+          );
           lines.push(
-            `Memoria ${row.memoryKey.replace(/_/g, " ")}: ${value.content.trim()}`,
+            `Memoria ${row.memoryKey.replace(/_/g, " ")}: ${value.content.trim()}${formatMemoryValidity({ expiresAt: row.memoryExpiresAt, observedAt: row.memoryObservedAt })}`,
           );
         }
       }
@@ -494,7 +507,7 @@ export async function formatTinyUserSnapshotForPrompt(
       if (getTinyUserSnapshotGeneration(userId) === generation) {
         setTinyUserSnapshotCache(userId, {
           value,
-          expiresAt: Date.now() + TINY_USER_SNAPSHOT_CACHE_TTL_MS,
+          expiresAt,
         });
       }
       return value;

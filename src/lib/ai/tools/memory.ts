@@ -7,6 +7,14 @@ import {
   resolveMemoryApproval as resolvePendingMemoryApproval,
 } from "@/lib/ai/memory-approval";
 import {
+  formatMemoryValidity,
+  knownMemoryTimeZone,
+  type MemoryExpiry,
+  memoryExpirySchema,
+  messageTimeZone,
+  resolveMemoryExpiry,
+} from "@/lib/ai/memory-expiry";
+import {
   findActiveFactIdByKey,
   forgetFact as forgetDurableFact,
   invalidateFactCache,
@@ -20,6 +28,8 @@ import {
 } from "@/lib/ai/memory-target";
 import { prisma } from "@/lib/db";
 import type { ServerTraceCollector } from "@/lib/response-profiler/server-trace";
+import { getTextFromParts } from "@/lib/utils/message-parts";
+import { invalidateUserContextPromptCache } from "./user-context-cache";
 
 type MemoriesPromptCacheEntry = {
   value: string;
@@ -40,6 +50,7 @@ export function invalidateMemoriesForPromptCache(userId: string) {
     (memoriesPromptGenerations.get(userId) ?? 0) + 1,
   );
   invalidateFactCache(userId);
+  invalidateUserContextPromptCache(userId);
 }
 
 interface MemoryValue {
@@ -48,6 +59,8 @@ interface MemoryValue {
   confidence: number;
   createdAt?: string;
   updatedAt?: string;
+  expiresAt?: Date | null;
+  observedAt?: Date;
 }
 
 const memoryCategories = [
@@ -105,6 +118,51 @@ export function createMemoryTools(
   userId: string,
   options?: CreateMemoryToolsOptions,
 ) {
+  async function factTime(
+    expiry: MemoryExpiry | null | undefined,
+  ): Promise<{ expiresAt?: Date | null; observedAt?: Date } | null> {
+    if (expiry === undefined) return {};
+    if (expiry === null) return { expiresAt: null };
+    const source = await prisma.message.findFirst({
+      where: {
+        id: options?.sourceInboundMessageId,
+        userId,
+        direction: "INBOUND",
+        role: "USER",
+        deletedAt: null,
+        ...(options?.sourceThreadId
+          ? { conversationThreadId: options.sourceThreadId }
+          : {}),
+      },
+      select: { createdAt: true, metadata: true, parts: true },
+    });
+    if (!source) return null;
+    const context = {
+      expiry,
+      sourceText: getTextFromParts(source.parts),
+      observedAt: source.createdAt,
+      timeZone: messageTimeZone(source.metadata),
+    };
+    let expiresAt = resolveMemoryExpiry(context);
+    if (!expiresAt && !context.timeZone && !expiry.timeZone) {
+      expiresAt = resolveMemoryExpiry({
+        ...context,
+        timeZone: await knownMemoryTimeZone(userId),
+      });
+    }
+    return expiresAt ? { expiresAt, observedAt: source.createdAt } : null;
+  }
+
+  const expiryInput = memoryExpirySchema
+    .nullable()
+    .describe(
+      "Per eventi, scadenze o piani temporanei, copia in expression la data completa dal messaggio utente. timeZone è IANA solo se l'utente lo scrive; non inventare date o fusi. null indica un fatto durevole senza scadenza.",
+    );
+  const unclearDate = {
+    status: "clarification_required" as const,
+    message:
+      "La data o il fuso orario non è univoco, oppure la scadenza è già passata. Chiarisci prima di salvare il fatto temporaneo.",
+  };
   const recallFacts = tool({
     description: `Recupera fatti durevoli pertinenti dalla memoria persistente dell'utente.
 Usa una query concreta e una categoria opzionale. I risultati sono già limitati,
@@ -141,6 +199,8 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
           value: fact.content,
           category: fact.category,
           confidence: fact.confidence,
+          expiresAt: fact.expiresAt?.toISOString() ?? null,
+          observedAt: fact.observedAt?.toISOString(),
         })),
         message: `Trovate ${result.facts.length} memorie pertinenti.`,
       };
@@ -148,7 +208,9 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
   });
 
   const rememberFact = tool({
-    description: `Salva o sovrascrive in modo silenzioso un singolo fatto durevole.
+    description: `Salva o sovrascrive in modo silenzioso un singolo fatto utile al coaching.
+Eventi futuri, scadenze e piani temporanei richiedono expiry; per fatti durevoli usa null.
+Non salvare chiacchiere o stati momentanei. Se la data è ambigua, chiedi o evita il salvataggio.
 Puoi inferire con prudenza fatti ordinari a basso rischio; non dire mai all'utente
 che il tool è stato eseguito. Salva anche fatti su persone citate dall'utente nella
 stessa memoria, mantenendo nome o relazione sia nella chiave sia nel valore. Non
@@ -159,14 +221,24 @@ trasformarli in fatti sull'utente. Per fatti sensibili chiedi una conferma natur
       category: memoryCategorySchema,
       confidence: z.number().min(0).max(1),
       sensitivity: z.enum(["low", "high"]),
+      expiry: expiryInput,
     }),
-    execute: async ({ key, value, category, confidence, sensitivity }) => {
+    execute: async ({
+      key,
+      value,
+      category,
+      confidence,
+      sensitivity,
+      expiry,
+    }) => {
       if (
         confidence < MEMORY.MIN_CONFIDENCE ||
         !options?.sourceInboundMessageId
       ) {
         return { status: "rejected" as const };
       }
+      const timing = await factTime(expiry);
+      if (!timing) return unclearDate;
       if (requiresServerApproval({ key, value, category, sensitivity })) {
         try {
           await createMemoryApproval({
@@ -176,6 +248,10 @@ trasformarli in fatti sull'utente. Per fatti sensibili chiedi una conferma natur
             value,
             category,
             confidence,
+            ...(timing.expiresAt !== undefined
+              ? { memoryExpiresAt: timing.expiresAt }
+              : {}),
+            ...(timing.observedAt ? { observedAt: timing.observedAt } : {}),
           });
           return { status: "approval_required" as const };
         } catch {
@@ -194,7 +270,9 @@ trasformarli in fatti sull'utente. Per fatti sensibili chiedi una conferma natur
         sourceMessageId: options.sourceInboundMessageId,
         sourceThreadId: options.sourceThreadId,
         dedupeKey: `tool:${options.sourceInboundMessageId}:${key}`,
+        ...timing,
       });
+      if (result.status === "saved") invalidateMemoriesForPromptCache(userId);
       return result.status === "saved" || result.status === "duplicate"
         ? { status: "saved" as const, memoryId: result.factId }
         : { status: "rejected" as const };
@@ -204,14 +282,16 @@ trasformarli in fatti sull'utente. Per fatti sensibili chiedi una conferma natur
   const reviseFact = tool({
     description: `Aggiorna in modo silenzioso un solo fatto esatto già risolto dal server.
 Non scegliere autonomamente l'identità del fatto e non usare questo tool per
-modifiche ampie o ambigue.`,
+modifiche ampie o ambigue. expiry sostituisce la scadenza, null la rimuove quando
+il fatto è ora durevole; omettila soltanto se la scadenza esistente resta valida.`,
     inputSchema: z.object({
       value: z.string().trim().min(1).max(1000),
       category: memoryCategorySchema,
       confidence: z.number().min(0).max(1),
       sensitivity: z.enum(["low", "high"]),
+      expiry: expiryInput.optional(),
     }),
-    execute: async ({ value, category, confidence, sensitivity }) => {
+    execute: async ({ value, category, confidence, sensitivity, expiry }) => {
       if (
         !options?.reviseTarget ||
         !options.sourceInboundMessageId ||
@@ -219,6 +299,8 @@ modifiche ampie o ambigue.`,
       ) {
         return { status: "not_found" as const };
       }
+      const timing = await factTime(expiry);
+      if (!timing) return unclearDate;
       if (
         requiresServerApproval({
           key: options.reviseTarget.key,
@@ -234,6 +316,10 @@ modifiche ampie o ambigue.`,
           value,
           category,
           confidence,
+          ...(timing.expiresAt !== undefined
+            ? { memoryExpiresAt: timing.expiresAt }
+            : {}),
+          ...(timing.observedAt ? { observedAt: timing.observedAt } : {}),
         });
         return { status: "approval_required" as const };
       }
@@ -249,7 +335,9 @@ modifiche ampie o ambigue.`,
         sourceMessageId: options.sourceInboundMessageId,
         sourceThreadId: options.sourceThreadId,
         dedupeKey: `tool:${options.sourceInboundMessageId}:revise:${options.reviseTarget.id}`,
+        ...timing,
       });
+      if (result.status === "saved") invalidateMemoriesForPromptCache(userId);
       return result.status === "saved" || result.status === "duplicate"
         ? { status: "saved" as const, memoryId: result.factId }
         : { status: result.status };
@@ -264,11 +352,14 @@ Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi in
       value: z.string().trim().min(1).max(1000),
       category: memoryCategorySchema,
       confidence: z.number().min(MEMORY.MIN_CONFIDENCE).max(1),
+      expiry: expiryInput,
     }),
-    execute: async ({ key, value, category, confidence }) => {
+    execute: async ({ key, value, category, confidence, expiry }) => {
       if (!options?.sourceInboundMessageId) {
         throw new Error("Missing server-owned inbound message context");
       }
+      const timing = await factTime(expiry);
+      if (!timing) return unclearDate;
       await createMemoryApproval({
         userId,
         sourceInboundMessageId: options.sourceInboundMessageId,
@@ -276,6 +367,10 @@ Dopo il tool, chiedi una conferma naturale senza citare tool, id o meccanismi in
         value,
         category,
         confidence,
+        ...(timing.expiresAt !== undefined
+          ? { memoryExpiresAt: timing.expiresAt }
+          : {}),
+        ...(timing.observedAt ? { observedAt: timing.observedAt } : {}),
       });
       return { status: "approval_required" as const };
     },
@@ -365,13 +460,21 @@ async function getAllMemories(
       key: true,
       value: true,
       category: true,
+      expiresAt: true,
+      observedAt: true,
     },
   });
 
   const memoryMap = new Map<string, MemoryValue>();
   for (const memory of memories) {
+    if (memory.expiresAt && memory.expiresAt <= new Date()) continue;
     const value = memory.value as unknown as MemoryValue;
-    memoryMap.set(memory.key, { ...value, category: memory.category });
+    memoryMap.set(memory.key, {
+      ...value,
+      category: memory.category,
+      expiresAt: memory.expiresAt,
+      observedAt: memory.observedAt,
+    });
   }
   return memoryMap;
 }
@@ -407,7 +510,9 @@ function formatMemoryMap(memories: Map<string, MemoryValue>): string {
   for (const [category, items] of byCategory) {
     lines.push(`\n### ${categoryLabels[category] || category}`);
     for (const item of items) {
-      lines.push(`- **${item.key.replace(/_/g, " ")}**: ${item.value.content}`);
+      lines.push(
+        `- **${item.key.replace(/_/g, " ")}**: ${item.value.content}${formatMemoryValidity(item.value)}`,
+      );
     }
   }
 
@@ -421,18 +526,25 @@ type FormatMemoriesForPromptOptions = {
 async function loadAndFormatMemories(
   userId: string,
   traceCollector?: ServerTraceCollector,
-): Promise<string> {
+): Promise<MemoriesPromptCacheEntry> {
   const memories = traceCollector
     ? await traceCollector.measure("memory_query", () => getAllMemories(userId))
     : await getAllMemories(userId);
 
-  if (traceCollector) {
-    return traceCollector.measure("memory_format", async () =>
-      formatMemoryMap(memories),
-    );
-  }
-
-  return formatMemoryMap(memories);
+  const value = traceCollector
+    ? await traceCollector.measure("memory_format", async () =>
+        formatMemoryMap(memories),
+      )
+    : formatMemoryMap(memories);
+  return {
+    value,
+    expiresAt: Math.min(
+      Date.now() + MEMORIES_PROMPT_CACHE_TTL_MS,
+      ...[...memories.values()].map(
+        (memory) => memory.expiresAt?.getTime() ?? Number.POSITIVE_INFINITY,
+      ),
+    ),
+  };
 }
 
 export async function formatMemoriesForPrompt(
@@ -447,14 +559,11 @@ export async function formatMemoriesForPrompt(
 
   const generation = memoriesPromptGenerations.get(userId) ?? 0;
   const promise = loadAndFormatMemories(userId, options?.traceCollector).then(
-    (value) => {
+    (entry) => {
       if ((memoriesPromptGenerations.get(userId) ?? 0) === generation) {
-        memoriesPromptCache.set(userId, {
-          value,
-          expiresAt: Date.now() + MEMORIES_PROMPT_CACHE_TTL_MS,
-        });
+        memoriesPromptCache.set(userId, entry);
       }
-      return value;
+      return entry.value;
     },
   );
   memoriesPromptInFlight.set(userId, promise);

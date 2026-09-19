@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { z } from "zod";
 import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
+import { memoryExpirySchema } from "@/lib/ai/memory-expiry";
 import {
   SUB_AGENT_MODEL_ID,
   subAgentModel,
@@ -31,7 +32,8 @@ const MemoryCandidateSchema = z.object({
   sensitivity: z.enum(["LOW", "HIGH"]),
   origin: z.enum(["EXPLICIT", "INFERRED"]),
   explicitSetting: z.boolean(),
-  durability: z.enum(["DURABLE", "TRANSIENT"]),
+  durability: z.enum(["DURABLE", "TEMPORARY", "TRANSIENT"]),
+  expiry: memoryExpirySchema.nullable().optional(),
   evidence: z.string().trim().min(1).max(500),
   subject: z.enum(["ACCOUNT_HOLDER", "REFERENCED_PERSON"]),
   subjectName: z.string().trim().min(1).max(80).nullable(),
@@ -101,10 +103,22 @@ export async function extractMemoryCandidates(input: {
       providerOptions: {
         openrouter: getOpenRouterProviderOptionsForModel(SUB_AGENT_MODEL_ID),
       },
-      instructions: `Estrai al massimo 8 candidati di memoria durevole forniti dall'utente.
+      instructions: `Estrai al massimo 8 candidati di memoria forniti dall'utente.
 L'assistente non è mai la fonte: può solo disambiguare il contesto. Ogni candidato
 deve includere in evidence una citazione breve presente letteralmente nel testo utente.
-Classifica come TRANSIENT i dettagli del momento; explicitSetting è true soltanto per
+Classifica come TEMPORARY eventi futuri, scadenze, pressioni e piani temporanei
+utili al coaching soltanto se l'utente indica una data di fine o revisione.
+In expiry.expression copia la data letterale completa, senza calcolarla:
+"domani", "venerdì", "2026-10-24", "24 ottobre 2026", "domani alle 18:00"
+o un timestamp ISO con offset. Il server la risolve rispetto all'orario del messaggio.
+In expiry.timeZone usa un fuso IANA solo se scritto dall'utente, altrimenti null.
+Non inventare anno, fuso, durata o data di revisione. Date ambigue come "venerdì
+prossimo" richiedono chiarimento; non troncare l'espressione per renderla valida.
+I fatti temporanei usano chiavi contestuali specifiche, mai campi di profilo o preferenze.
+Il valore deve indicare l'evento o piano, non trasformarlo in una caratteristica permanente.
+I fatti durevoli usano DURABLE con expiry null; i normali dettagli del momento senza
+utilità futura sono TRANSIENT. Un fuso personale esplicito usa user_timezone e valore IANA.
+explicitSetting è true soltanto per
 un'impostazione o preferenza esplicitamente richiesta. Usa HIGH per salute, diagnosi,
 trauma, sfera intima o fatti ad alto impatto. Salva anche i fatti durevoli su altre
 persone citate dall'utente: usa REFERENCED_PERSON e riporta il nome e la relazione
@@ -113,7 +127,7 @@ e non completare dettagli.
 Restituisci solo JSON valido: {"facts":[{"key":"snake_case","value":"...",
 "category":"...","confidence":0.9,"sensitivity":"LOW|HIGH",
 "origin":"EXPLICIT|INFERRED","explicitSetting":false,
-"durability":"DURABLE|TRANSIENT","evidence":"testo utente",
+"durability":"DURABLE|TEMPORARY|TRANSIENT","expiry":null,"evidence":"testo utente",
 "subject":"ACCOUNT_HOLDER|REFERENCED_PERSON","subjectName":null,
 "subjectRelationship":null}]}.`,
       prompt: `TESTO UTENTE:\n${input.userText}\n\nRISPOSTA ASSISTENTE (solo contesto, mai fonte):\n${input.assistantText}`,

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   extractMemoryCandidates: vi.fn(),
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   updateCanonicalProfile: vi.fn(),
   updateCanonicalPreferences: vi.fn(),
   messageFindFirst: vi.fn(),
+  memoryFindFirst: vi.fn(),
 }));
 
 vi.mock("@/lib/ai/memory-extractor", () => ({
@@ -23,7 +24,10 @@ vi.mock("@/lib/ai/user-knowledge", () => ({
   updateCanonicalPreferences: mocks.updateCanonicalPreferences,
 }));
 vi.mock("@/lib/db", () => ({
-  prisma: { message: { findFirst: mocks.messageFindFirst } },
+  prisma: {
+    message: { findFirst: mocks.messageFindFirst },
+    memory: { findFirst: mocks.memoryFindFirst },
+  },
 }));
 
 import { consolidateTurnMemory } from "./memory-consolidator";
@@ -53,9 +57,12 @@ const input = {
   userText: "Da questo mese mi alleno ogni martedì sera.",
   assistantText: "Perfetto.",
 };
+const sourceCreatedAt = new Date("2026-09-18T10:00:00Z");
 
 describe("ai/memory-consolidator", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
     vi.clearAllMocks();
     mocks.extractMemoryCandidates.mockResolvedValue([]);
     mocks.rememberFact.mockResolvedValue({
@@ -68,8 +75,12 @@ describe("ai/memory-consolidator", () => {
     mocks.messageFindFirst.mockResolvedValue({
       id: "inbound-1",
       conversationThreadId: "thread-1",
+      createdAt: sourceCreatedAt,
+      metadata: { timeZone: "Europe/Rome" },
     });
+    mocks.memoryFindFirst.mockResolvedValue(null);
   });
+  afterEach(() => vi.useRealTimers());
 
   it("persists one ordinary durable fact with source provenance", async () => {
     mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
@@ -91,6 +102,8 @@ describe("ai/memory-consolidator", () => {
       sourceMessageId: "inbound-1",
       sourceThreadId: "thread-1",
       dedupeKey: "memory:inbound-1:training_schedule",
+      observedAt: sourceCreatedAt,
+      expiresAt: null,
     });
   });
 
@@ -113,7 +126,7 @@ describe("ai/memory-consolidator", () => {
         deletedAt: null,
         conversationThreadId: "thread-1",
       },
-      select: { id: true },
+      select: { id: true, createdAt: true, metadata: true },
     });
   });
 
@@ -201,6 +214,8 @@ describe("ai/memory-consolidator", () => {
       sourceMessageId: "inbound-1",
       sourceThreadId: "thread-1",
       dedupeKey: "memory:inbound-1:person_matteo_user_sport",
+      observedAt: sourceCreatedAt,
+      expiresAt: null,
     });
     expect(mocks.rememberFact).toHaveBeenNthCalledWith(2, {
       userId: "user-1",
@@ -213,6 +228,8 @@ describe("ai/memory-consolidator", () => {
       sourceMessageId: "inbound-1",
       sourceThreadId: "thread-1",
       dedupeKey: "memory:inbound-1:person_nicola_user_sport",
+      observedAt: sourceCreatedAt,
+      expiresAt: null,
     });
   });
 
@@ -274,7 +291,125 @@ describe("ai/memory-consolidator", () => {
       value: "Dolore persistente al ginocchio",
       category: "health",
       confidence: 0.94,
+      observedAt: sourceCreatedAt,
+      memoryExpiresAt: null,
     });
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("saves a temporary study deadline using the source day even when extraction runs later", async () => {
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        key: "study_exam",
+        value: "Esame domani",
+        category: "schedule",
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+        evidence: "esame domani",
+      }),
+    ]);
+    const report = await consolidateTurnMemory({
+      ...input,
+      userText: "Ho un esame domani.",
+    });
+    expect(report.persisted).toBe(1);
+    expect(mocks.rememberFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "study_exam",
+        observedAt: sourceCreatedAt,
+        expiresAt: new Date("2026-09-19T22:00:00Z"),
+      }),
+    );
+  });
+
+  it("preserves referenced-person attribution and expiry while requesting sensitive confirmation", async () => {
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        key: "medical_review",
+        value: "Visita di controllo domani",
+        category: "health",
+        sensitivity: "HIGH",
+        subject: "REFERENCED_PERSON",
+        subjectName: "Matteo",
+        subjectRelationship: "figlio",
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+        evidence: "Matteo ha una visita domani",
+      }),
+    ]);
+    const report = await consolidateTurnMemory({
+      ...input,
+      userText: "Matteo ha una visita domani.",
+    });
+    expect(report.approvalsCreated).toBe(1);
+    expect(mocks.createMemoryApproval).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "person_matteo_medical_review",
+        value: "Matteo (figlio): Visita di controllo domani",
+        observedAt: sourceCreatedAt,
+        memoryExpiresAt: new Date("2026-09-19T22:00:00Z"),
+      }),
+    );
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
+  });
+
+  it("skips temporary facts with unknown timezone, ambiguous dates or profile destinations", async () => {
+    mocks.messageFindFirst.mockResolvedValue({
+      id: "inbound-1",
+      createdAt: sourceCreatedAt,
+      metadata: {},
+    });
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+        evidence: "esame domani",
+      }),
+      candidate({
+        durability: "TEMPORARY",
+        expiry: null,
+        evidence: "esame domani",
+      }),
+      candidate({
+        key: "user_goal",
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+        evidence: "esame domani",
+      }),
+    ]);
+    expect(
+      await consolidateTurnMemory({
+        ...input,
+        userText: "Ho un esame domani.",
+      }),
+    ).toEqual({
+      considered: 3,
+      persisted: 0,
+      approvalsCreated: 0,
+      rejected: 3,
+    });
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+  });
+
+  it("does not turn an old event into future memory during a history backfill", async () => {
+    vi.setSystemTime(new Date("2026-09-21T12:00:00Z"));
+    mocks.extractMemoryCandidates.mockResolvedValue([
+      candidate({
+        durability: "TEMPORARY",
+        expiry: { expression: "domani" },
+        evidence: "esame domani",
+      }),
+    ]);
+    expect(
+      (
+        await consolidateTurnMemory({
+          ...input,
+          userText: "Ho un esame domani.",
+          memoryOnly: true,
+        })
+      ).rejected,
+    ).toBe(1);
     expect(mocks.rememberFact).not.toHaveBeenCalled();
   });
 

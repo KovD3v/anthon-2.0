@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   tool: vi.fn(),
   memoryFindMany: vi.fn(),
+  memoryFindFirst: vi.fn(),
+  messageFindFirst: vi.fn(),
   memoryUpsert: vi.fn(),
   memoryDeleteMany: vi.fn(),
   recallFacts: vi.fn(),
@@ -22,9 +24,11 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     memory: {
       findMany: mocks.memoryFindMany,
+      findFirst: mocks.memoryFindFirst,
       upsert: mocks.memoryUpsert,
       deleteMany: mocks.memoryDeleteMany,
     },
+    message: { findFirst: mocks.messageFindFirst },
   },
 }));
 
@@ -58,6 +62,8 @@ describe("ai/tools/memory", () => {
     mocks.tool.mockReset();
     mocks.tool.mockImplementation((definition) => definition);
     mocks.memoryFindMany.mockReset();
+    mocks.memoryFindFirst.mockReset();
+    mocks.messageFindFirst.mockReset();
     mocks.memoryUpsert.mockReset();
     mocks.memoryDeleteMany.mockReset();
     mocks.recallFacts.mockReset();
@@ -67,6 +73,80 @@ describe("ai/tools/memory", () => {
     mocks.findActiveFactIdByKey.mockReset();
     mocks.createMemoryApproval.mockReset();
     mocks.resolveMemoryApproval.mockReset();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("resolves temporary live-tool writes from owned persisted message time and metadata", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
+    const observedAt = new Date("2026-09-18T10:00:00Z");
+    mocks.messageFindFirst.mockResolvedValue({
+      createdAt: observedAt,
+      metadata: { timeZone: "Europe/Rome" },
+      parts: [{ type: "text", text: "Consegna del progetto domani" }],
+    });
+    mocks.rememberFact.mockResolvedValue({
+      status: "saved",
+      factId: "memory-1",
+    });
+    const save = createMemoryTools("user-1", {
+      sourceInboundMessageId: "inbound-1",
+      sourceThreadId: "thread-1",
+    }).rememberFact as unknown as ToolDefinition<{ status: string }>;
+    expect(
+      await save.execute({
+        key: "work_deadline",
+        value: "Consegna progetto",
+        category: "schedule",
+        confidence: 1,
+        sensitivity: "low",
+        expiry: { expression: "domani" },
+      }),
+    ).toEqual({ status: "saved", memoryId: "memory-1" });
+    expect(mocks.rememberFact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        observedAt,
+        expiresAt: new Date("2026-09-19T22:00:00Z"),
+      }),
+    );
+    expect(mocks.messageFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: "inbound-1",
+          userId: "user-1",
+          role: "USER",
+          direction: "INBOUND",
+          deletedAt: null,
+          conversationThreadId: "thread-1",
+        },
+      }),
+    );
+  });
+
+  it("asks for date clarification instead of saving an ungrounded live-tool expiry", async () => {
+    mocks.messageFindFirst.mockResolvedValue({
+      createdAt: new Date(),
+      metadata: {},
+      parts: [{ type: "text", text: "Ho una scadenza" }],
+    });
+    mocks.memoryFindFirst.mockResolvedValue(null);
+    const save = createMemoryTools("user-1", {
+      sourceInboundMessageId: "inbound-1",
+    }).rememberFact as unknown as ToolDefinition<{ status: string }>;
+    expect(
+      (
+        await save.execute({
+          key: "work_deadline",
+          value: "Consegna progetto",
+          category: "schedule",
+          confidence: 1,
+          sensitivity: "low",
+          expiry: { expression: "domani" },
+        })
+      ).status,
+    ).toBe("clarification_required");
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.createMemoryApproval).not.toHaveBeenCalled();
   });
 
   it("atomically saves or overwrites one low-risk stable key", async () => {
@@ -462,12 +542,32 @@ describe("ai/tools/memory", () => {
           key: true,
           value: true,
           category: true,
+          expiresAt: true,
+          observedAt: true,
         },
       }),
     );
 
     invalidateMemoriesForPromptCache(userId);
     await formatMemoriesForPrompt(userId);
+    expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
+  });
+
+  it("expires formatted prompt memory exactly on its deadline, before the cache TTL", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
+    const row = {
+      key: "work_deadline",
+      category: "schedule",
+      value: { content: "Delivery" },
+      expiresAt: new Date("2026-09-19T12:00:05Z"),
+    };
+    mocks.memoryFindMany.mockResolvedValueOnce([row]).mockResolvedValue([]);
+    expect(await formatMemoriesForPrompt("expiring-prompt")).toContain(
+      "Delivery",
+    );
+    vi.advanceTimersByTime(5_000);
+    expect(await formatMemoriesForPrompt("expiring-prompt")).toBe("");
     expect(mocks.memoryFindMany).toHaveBeenCalledTimes(2);
   });
 

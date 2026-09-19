@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   executeRaw: vi.fn(),
@@ -54,6 +54,7 @@ function buildFact(
     confidence: number;
     observedAt: Date;
     updatedAt: Date;
+    expiresAt: Date | null;
   }> = {},
 ) {
   return {
@@ -69,7 +70,7 @@ function buildFact(
     sourceMessageId: null,
     sourceThreadId: null,
     lastConfirmedAt: null,
-    expiresAt: null,
+    expiresAt: overrides.expiresAt ?? null,
     observedAt: overrides.observedAt ?? new Date("2026-08-10T18:00:00.000Z"),
     updatedAt: overrides.updatedAt ?? new Date("2026-08-10T18:00:00.000Z"),
   };
@@ -81,6 +82,7 @@ describe("durable fact recall", () => {
     mocks.revisionFindUnique.mockResolvedValue(null);
     invalidateFactCache("user-1");
   });
+  afterEach(() => vi.useRealTimers());
 
   it("does not rewarm the cache from a read started before invalidation", async () => {
     let finishRead!: (facts: ReturnType<typeof buildFact>[]) => void;
@@ -122,6 +124,7 @@ describe("durable fact recall", () => {
           confidence: 0.96,
           observedAt: new Date("2026-08-10T18:00:00.000Z"),
           updatedAt: new Date("2026-08-10T18:00:00.000Z"),
+          expiresAt: null,
         },
       ],
     });
@@ -142,8 +145,26 @@ describe("durable fact recall", () => {
         confidence: true,
         observedAt: true,
         updatedAt: true,
+        expiresAt: true,
       },
     });
+  });
+
+  it("stops recall and listing exactly at expiry even with a warm snapshot", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
+    mocks.memoryFindMany.mockResolvedValue([
+      buildFact({ expiresAt: new Date("2026-09-19T12:00:05Z") }),
+    ]);
+    expect(
+      (await recallFacts({ userId: "user-1", query: "orario" })).facts,
+    ).toHaveLength(1);
+    vi.advanceTimersByTime(5_000);
+    expect(
+      (await recallFacts({ userId: "user-1", query: "orario" })).facts,
+    ).toEqual([]);
+    expect((await listActiveFacts({ userId: "user-1" })).facts).toEqual([]);
+    expect(mocks.memoryFindMany).toHaveBeenCalledTimes(1);
   });
 
   it("ranks a relevant older fact before an unrelated newer fact", async () => {
@@ -364,6 +385,98 @@ describe("durable fact recall", () => {
       }),
     });
   });
+
+  it.each([null, new Date("2099-10-24T18:00:00Z")])(
+    "allows a correction to clear or replace expiry and snapshots the old expiry",
+    async (expiresAt) => {
+      const oldExpiry = new Date("2099-10-23T18:00:00Z");
+      mocks.memoryFindFirst.mockResolvedValue(
+        buildFact({ expiresAt: oldExpiry }),
+      );
+      mocks.memoryUpdate.mockResolvedValue({ id: "memory-1" });
+      expect(
+        (
+          await reviseFact({
+            userId: "user-1",
+            factId: "memory-1",
+            key: "training_schedule",
+            value: "Giovedì mattina",
+            category: "schedule",
+            confidence: 1,
+            sensitivity: "LOW",
+            origin: "EXPLICIT",
+            dedupeKey: "correction",
+            expiresAt,
+          })
+        ).status,
+      ).toBe("saved");
+      expect(mocks.memoryUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ expiresAt }),
+        }),
+      );
+      expect(mocks.revisionCreate).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          previousValue: expect.objectContaining({
+            _undoState: expect.objectContaining({
+              expiresAt: oldExpiry.toISOString(),
+            }),
+          }),
+        }),
+      });
+    },
+  );
+
+  it("does not deduplicate a same-turn correction that changes only expiry", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({
+      ...buildFact({ expiresAt: new Date("2099-10-24T18:00:00Z") }),
+      sourceMessageId: "message-1",
+    });
+    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    expect(
+      (
+        await rememberFact({
+          userId: "user-1",
+          key: "training_schedule",
+          value: "Martedì sera",
+          category: "schedule",
+          confidence: 1,
+          sensitivity: "LOW",
+          origin: "EXPLICIT",
+          sourceMessageId: "message-1",
+          dedupeKey: "clear-expiry",
+          expiresAt: null,
+        })
+      ).status,
+    ).toBe("saved");
+    expect(mocks.memoryUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({ expiresAt: null }),
+      }),
+    );
+  });
+
+  it.each([new Date("invalid"), new Date(0)])(
+    "rejects invalid or past expiry before writing",
+    async (expiresAt) => {
+      expect(
+        (
+          await rememberFact({
+            userId: "user-1",
+            key: "work_deadline",
+            value: "Delivery",
+            category: "schedule",
+            confidence: 1,
+            sensitivity: "LOW",
+            origin: "EXPLICIT",
+            dedupeKey: "invalid-expiry",
+            expiresAt,
+          })
+        ).status,
+      ).toBe("rejected");
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    },
+  );
 
   it("soft-forgets an exact active fact and preserves its last value", async () => {
     mocks.memoryFindFirst.mockResolvedValue({
