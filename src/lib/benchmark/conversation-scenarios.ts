@@ -30,71 +30,79 @@ function turn(
     lowAnchorResponse: low,
     highAnchorResponse,
     judgeRubric:
-      "Premia comprensione, domanda ad alto valore quando necessaria, uso del contesto e progressione senza formule rituali.",
+      "Premia comprensione, risposte dirette quando il contesto basta, domande correlate raggruppate solo quando cambiano il coaching, uso del contesto e progressione senza formule rituali.",
     conversationalExpectations,
   };
 }
 
 const seeds: ScenarioSeed[] = [
   {
-    id: "conversation-discovery-age",
+    id: "conversation-study-grouped-discovery",
     tag: "discovery",
-    persona: "Atleta che chiede un carico senza indicare eta o livello",
-    first: "Preparami un allenamento molto intenso per migliorare in fretta.",
-    second: "Ho 15 anni, gioco da un anno e mi alleno due volte a settimana.",
+    persona: "Studentessa che vuole preparare un esame senza un piano chiaro",
+    first:
+      "Ho un esame e mi perdo tra gli argomenti. Aiutami a organizzare il ripasso.",
+    second:
+      "È un orale venerdì, ho due ore al giorno e mi bloccano le dimostrazioni.",
     firstExpectations: {
       adviceReadiness: "ask_first",
       questionPolicy: "diagnostic",
     },
     secondExpectations: {
       adviceReadiness: "answer_now",
-      expectedContextFacts: ["15 anni", "un anno", "due volte"],
+      expectedContextFacts: ["orale", "venerdì", "due ore", "dimostrazioni"],
       questionPolicy: "optional",
     },
     highFirst:
-      "Prima di definire il carico mi servono eta, esperienza e frequenza attuale: quanti anni hai e quanto ti alleni oggi?",
+      "Per organizzare il ripasso mi servono tre dettagli collegati: quando sarà l'esame, che formato avrà e quanto tempo hai ogni giorno?",
     highSecond:
-      "Con 15 anni, un anno di esperienza e due sedute, aumenterei gradualmente qualita e recupero senza partire da un carico estremo.",
+      "Per l'orale di venerdì dividerei le due ore tra richiamo a voce degli argomenti e prove delle dimostrazioni senza appunti. Parti dalla dimostrazione che ti blocca: prova il primo passaggio, controllalo e ripeti il ragionamento completo.",
   },
   {
-    id: "conversation-discovery-food",
-    tag: "discovery",
-    persona: "Atleta che chiede un menu senza vincoli",
-    first: "Fammi un menu settimanale per gli allenamenti.",
-    second: "Sono vegetariana e mi alleno sempre alle 19.",
+    id: "conversation-work-recommendation",
+    tag: "naturalness",
+    persona: "Persona che chiede una raccomandazione con vincoli già chiari",
+    first:
+      "Devo consegnare domani. La versione base funziona; quella completa richiede altri due giorni. Il cliente ha chiesto soprattutto affidabilità. Quale consegno?",
+    second:
+      "Scelgo la base. Scrivimi due righe per spiegare cosa arriverà dopo.",
     firstExpectations: {
-      adviceReadiness: "ask_first",
-      questionPolicy: "diagnostic",
+      adviceReadiness: "answer_now",
+      expectedContextFacts: ["domani", "base", "affidabilità"],
+      questionPolicy: "none",
     },
     secondExpectations: {
       adviceReadiness: "answer_now",
-      expectedContextFacts: ["vegetariana", "19"],
-      questionPolicy: "optional",
+      expectedContextFacts: ["base"],
+      questionPolicy: "none",
     },
     highFirst:
-      "Per renderlo sensato devo sapere almeno preferenze alimentari, orario degli allenamenti e obiettivo: da quale partiamo?",
+      "Consegna la base: rispetta domani e la priorità di affidabilità. Rinunci per ora alle funzioni aggiuntive, quindi rendi esplicito cosa comprende la consegna e concorda il seguito senza promettere una data non verificata.",
     highSecond:
-      "Considerando alimentazione vegetariana e seduta alle 19, imposterei pranzo completo, spuntino digeribile e cena di recupero.",
+      "Domani consegniamo la versione base già funzionante, dando priorità all'affidabilità. Le funzioni aggiuntive seguiranno in una seconda consegna, con tempi da confermare insieme.",
   },
   {
-    id: "conversation-discovery-home",
-    tag: "discovery",
-    persona: "Persona che vuole allenarsi a casa",
-    first: "Mi fai una scheda da fare a casa?",
-    second: "Ho solo elastici e posso farla tre giorni.",
+    id: "conversation-work-grouped-discovery",
+    tag: "question-quality",
+    persona:
+      "Persona che si blocca in riunione e vuole capire il momento critico",
+    first:
+      "In riunione smetto sempre di parlare anche quando conosco la risposta.",
+    second:
+      "Mi interrompe il responsabile e penso che la mia idea sia stupida; vorrei finire una frase.",
     firstExpectations: {
       adviceReadiness: "ask_first",
       questionPolicy: "diagnostic",
     },
     secondExpectations: {
       adviceReadiness: "answer_now",
-      expectedContextFacts: ["elastici", "tre giorni"],
+      expectedContextFacts: ["responsabile", "interrompe", "frase"],
       questionPolicy: "optional",
     },
     highFirst:
-      "Si, ma prima: che attrezzatura hai e quanti giorni puoi dedicarle?",
+      "In quale momento smetti di parlare, e cosa pensi proprio in quel momento? I due dettagli ci aiutano a capire cosa ti frena.",
     highSecond:
-      "Con elastici e tre giorni possiamo alternare spinta, tirata e gambe, mantenendo sedute brevi e progressive.",
+      "L'interruzione del responsabile diventa subito un giudizio sulla tua idea. Per la prossima riunione prova una frase preparata: \"Finisco questo punto e poi ti ascolto\". L'obiettivo è completare il pensiero, senza dover dimostrare che sia perfetto.",
   },
   {
     id: "conversation-clarify-ambiguous",
@@ -136,7 +144,7 @@ const seeds: ScenarioSeed[] = [
     highFirst:
       "Il fatto che accada prima della partita rende importante capire il legame con la pressione, senza dare per scontata una causa: succede solo quando devi giocare o anche in altri momenti?",
     highSecond:
-      "Il nodo sembra la paura di deludere, che alza l'attivazione fino alla nausea. Lavoriamo su un reset pre-partita breve, un obiettivo controllabile per i primi minuti e una nota dopo la gara per capire cosa cambia la reazione.",
+      "Il nodo mentale che descrivi è la paura di deludere; questo non stabilisce la causa del vomito. Lavoriamo su un reset pre-partita breve, un obiettivo controllabile per i primi minuti e una nota dopo la gara per capire cosa cambia la reazione.",
   },
   {
     id: "conversation-no-ritual-question",

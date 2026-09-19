@@ -4,7 +4,7 @@ import {
 } from "./reality-judge";
 
 export type ConversationBenchmarkCliConfig = {
-  command: "baseline" | "candidate" | "compare" | "help";
+  command: "baseline" | "candidate" | "compare" | "inspect" | "help";
   label: string | null;
   samples: number;
   baselinePath: string | null;
@@ -21,8 +21,13 @@ export function parseConversationBenchmarkArgs(
 ): ConversationBenchmarkCliConfig {
   if (argv[0] === "--help" || argv[0] === "-h") return defaults("help");
   const command = argv[0];
-  if (!command || !["baseline", "candidate", "compare"].includes(command)) {
-    throw new Error("A baseline, candidate, or compare command is required");
+  if (
+    !command ||
+    !["baseline", "candidate", "compare", "inspect"].includes(command)
+  ) {
+    throw new Error(
+      "A baseline, candidate, compare, or inspect command is required",
+    );
   }
   const config = defaults(command as ConversationBenchmarkCliConfig["command"]);
   for (let index = 1; index < argv.length; index += 1) {
@@ -61,6 +66,10 @@ export function parseConversationBenchmarkArgs(
     throw new Error("compare requires --baseline and --candidate");
   if (config.command === "compare" && !config.judge)
     throw new Error("compare requires --judge");
+  if (config.command === "inspect" && !config.candidatePath)
+    throw new Error("inspect requires --candidate");
+  if (config.command === "inspect" && config.judge)
+    throw new Error("inspect is offline; use compare for a model judge");
   assertJudgeModels(config.judgeModels);
   return config;
 }
@@ -86,7 +95,7 @@ export function assertConversationDbMutationAllowed(
   config: ConversationBenchmarkCliConfig,
   env: Record<string, string | undefined> = process.env,
 ) {
-  if (config.command === "compare" || config.command === "help") return;
+  if (["compare", "inspect", "help"].includes(config.command)) return;
   if (
     !config.allowDbMutation &&
     env.REALITY_BENCHMARK_ALLOW_DB_MUTATION !== "1"
@@ -99,5 +108,7 @@ export const CONVERSATION_BENCHMARK_USAGE = `Usage:
   bun run benchmark:conversation baseline --label NAME [--samples 3] --allow-db-mutation
   bun run benchmark:conversation candidate --baseline PATH [--label NAME] [--samples 3] --allow-db-mutation
   bun run benchmark:conversation compare --baseline PATH --candidate PATH --judge [--concurrency 4]
+  bun run benchmark:conversation inspect --candidate PATH
 
-The evaluated model is fixed at openai/gpt-5.6-luna. Run generation only on development or an ephemeral database.`;
+The evaluated model is fixed at openai/gpt-5.6-luna. Run generation only on development or an ephemeral database.
+Inspect reads v2 answer artifacts locally and reports lexical diagnostics; it does not connect to a model or database.`;

@@ -1,7 +1,7 @@
 import type { serializeRealityBenchmarkSummary } from "./reality-cli";
 
 export const CONVERSATION_ARTIFACT_VERSION = 1 as const;
-export const CONVERSATION_SCENARIO_VERSION = "conversation-v1" as const;
+export const CONVERSATION_SCENARIO_VERSION = "conversation-v2" as const;
 export const CONVERSATION_MODEL_ID = "openai/gpt-5.6-luna" as const;
 
 export type ConversationalDimensions = {

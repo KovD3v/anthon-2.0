@@ -13,6 +13,7 @@ import {
 import { judgeConversationPair } from "../src/lib/benchmark/conversation-benchmark-judge";
 import {
   formatConversationComparisonReport,
+  inspectConversationAnswers,
   parseConversationRun,
   serializeConversationComparison,
   serializeConversationRun,
@@ -37,6 +38,13 @@ async function main() {
     return;
   }
   assertConversationDbMutationAllowed(config);
+  if (config.command === "inspect") {
+    const artifact = JSON.parse(
+      await readFile(path.resolve(config.candidatePath as string), "utf8"),
+    );
+    console.info(JSON.stringify(inspectConversationAnswers(artifact), null, 2));
+    return;
+  }
   const outputDir = path.resolve(config.outputDir);
   await mkdir(outputDir, { recursive: true });
 
@@ -129,7 +137,7 @@ async function main() {
   const configurationFingerprint = createHash("sha256")
     .update(
       JSON.stringify({
-        scenarioVersion: "conversation-v1",
+        scenarioVersion: "conversation-v2",
         model: "openai/gpt-5.6-luna",
         executionPath: "single-agentic",
       }),

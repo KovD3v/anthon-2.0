@@ -302,4 +302,32 @@ describe("ai/orchestrator", () => {
     expect(streamInput).not.toHaveProperty("tools");
     expect(streamInput.instructions).toContain("MENTAL COACHING SCOPE");
   });
+
+  it.each([false, true])(
+    "uses the same scope and grouped-question policy for guest=%s",
+    async (isGuest) => {
+      await streamChat({
+        userId: "synthetic-user",
+        chatId: "synthetic-chat",
+        userMessage: "Aiutami a preparare l'esame",
+        isGuest,
+        effectiveEntitlements: entitlements,
+      });
+      const prompt = mocks.streamText.mock.calls.at(-1)?.[0]
+        .instructions as string;
+      expect(prompt).toContain("study, work, sport");
+      expect(prompt).toContain(
+        "Group tightly related questions into one compact block",
+      );
+      expect(prompt).toContain(
+        "make a clear recommendation with reasons and trade-offs",
+      );
+      expect(prompt).toContain(
+        "a neutral, brief safety direction to a doctor, pediatrician, or emergency service",
+      );
+      expect(prompt).not.toMatch(
+        /coach for sports performance|one (?:focused |follow-up )?question at a time|do not choose for the user/i,
+      );
+    },
+  );
 });

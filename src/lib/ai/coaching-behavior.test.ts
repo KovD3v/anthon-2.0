@@ -39,18 +39,18 @@ describe("Anthon coaching behavior", () => {
     );
   });
 
-  it("asks one focused discovery question at a time", () => {
+  it("groups related discovery questions without extending the interview", () => {
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "Ask one focused question at a time",
+      "Group tightly related questions into one compact block",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "Use the user's answer to decide whether another question is needed",
+      "Use the answers together to choose the intervention",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "Do not stack several questions in the same response",
+      "Do not split related context across avoidable turns",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).not.toContain(
-      "compact question block",
+      "Ask one focused question at a time",
     );
   });
 
@@ -62,7 +62,7 @@ describe("Anthon coaching behavior", () => {
       "recurring, emotionally charged, important, or still poorly understood",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "one high-value question",
+      "smallest useful group of related questions",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Do not rush to advice, reframing, or a technique",
@@ -77,7 +77,7 @@ describe("Anthon coaching behavior", () => {
       "identify the central interference",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "one additional focused question",
+      "ask only for that missing context",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Depth takes priority over the usual brevity target",
@@ -99,7 +99,7 @@ describe("Anthon coaching behavior", () => {
 
   it("asks for self-assessment only when it changes post-performance coaching", () => {
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "match, competition, training session, or attempted routine",
+      "exam, presentation, difficult conversation, match, or attempted routine",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "only when it is not already known",
@@ -114,7 +114,7 @@ describe("Anthon coaching behavior", () => {
 
   it("preserves autonomy and separates performance from result", () => {
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
-      "Offer a perspective; do not choose for the user",
+      "make a clear recommendation with reasons and trade-offs",
     );
     expect(PROMPT_ANTHON_COACHING_BEHAVIOR).toContain(
       "Separate controllable performance from the final result",

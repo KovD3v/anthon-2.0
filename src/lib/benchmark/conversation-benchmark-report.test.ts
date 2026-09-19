@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { ConversationComparisonArtifact } from "./conversation-benchmark";
 import {
   formatConversationComparisonReport,
+  inspectConversationAnswers,
   parseConversationComparison,
   serializeConversationComparison,
 } from "./conversation-benchmark-report";
+import answerControls from "./fixtures/conversation-answers.json";
 
 const dimensions = {
   contextUse: 8,
@@ -31,7 +33,7 @@ const comparison: ConversationComparisonArtifact = {
   baselineCommit: "a".repeat(40),
   candidateCommit: "b".repeat(40),
   modelId: "openai/gpt-5.6-luna",
-  scenarioVersion: "conversation-v1",
+  scenarioVersion: "conversation-v2",
   samples: 3,
   verdictCounts: { baseline: 1, candidate: 4, tie: 1, both_insufficient: 0 },
   dimensionsBaseline: { ...dimensions, questionQuality: 5 },
@@ -65,6 +67,51 @@ const comparison: ConversationComparisonArtifact = {
 };
 
 describe("benchmark/conversation-benchmark-report", () => {
+  it("checks supplied answer text and leaves unjudged qualities unmeasured", () => {
+    const report = inspectConversationAnswers(answerControls);
+    expect(report.answerCount).toBe(3);
+    expect(report.results[0].missingContextTerms).toEqual([]);
+    expect(report.results[1].missingContextTerms).toEqual([
+      "pallavolo",
+      "battuta",
+    ]);
+    expect(report.results[1].repeatedQuestionTerms).toEqual(["che sport fai"]);
+    expect(report.results[2].questionPolicyMismatch).toBe(false);
+    expect(report.semanticCoachingQuality).toBeNull();
+    expect(report.unsupportedMemoryClaimRate).toBeNull();
+  });
+
+  it("rejects old scenarios, unknown turns and empty supplied answers", () => {
+    const artifact = {
+      scenarioVersion: "conversation-v2",
+      replicas: [
+        {
+          scenarioId: "conversation-work-recommendation",
+          turnIndex: 0,
+          assistantText: "Consegna la base.",
+        },
+      ],
+    };
+    expect(() =>
+      inspectConversationAnswers({
+        ...artifact,
+        scenarioVersion: "conversation-v1",
+      }),
+    ).toThrow();
+    expect(() =>
+      inspectConversationAnswers({
+        ...artifact,
+        replicas: [{ ...artifact.replicas[0], turnIndex: 9 }],
+      }),
+    ).toThrow(/Unknown scenario turn/);
+    expect(() =>
+      inspectConversationAnswers({
+        ...artifact,
+        replicas: [{ ...artifact.replicas[0], assistantText: "" }],
+      }),
+    ).toThrow();
+  });
+
   it("round trips a strict comparison artifact", () => {
     expect(
       parseConversationComparison(serializeConversationComparison(comparison)),

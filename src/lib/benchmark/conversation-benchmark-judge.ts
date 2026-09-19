@@ -97,7 +97,7 @@ export function buildConversationPairwiseJudgePrompt({
     );
   }
   return [
-    "Confronta alla cieca due risposte italiane di coaching sportivo.",
+    "Confronta alla cieca due risposte italiane di coaching della prestazione mentale nello studio, nel lavoro o nello sport.",
     `Scenario: ${scenario.title}`,
     `Persona: ${scenario.persona}`,
     `Conversazione A precedente: ${formatTranscript(transcriptA)}`,
@@ -107,7 +107,7 @@ export function buildConversationPairwiseJudgePrompt({
     `Anchor forte: ${turn.highAnchorResponse}`,
     `Rubrica: ${turn.judgeRubric}`,
     "Valuta 0-10: scoperta prima del consiglio, qualita della domanda, uso del contesto, naturalezza conversazionale, progressione multi-turn.",
-    "Una domanda diagnostica cambia il consiglio; una domanda rituale mantiene soltanto aperta la chat. Non premiare la verbosita da sola.",
+    "Le domande diagnostiche cambiano il consiglio: premia un gruppo compatto di domande strettamente correlate quando evita turni inutili. Non premiare domande ripetute, scollegate o rituali, né la verbosita. Se il contesto basta, premia una risposta diretta e una raccomandazione motivata quando richiesta. Non premiare prescrizioni di allenamento fisico, diete o diagnosi.",
     `Risposta A:\n${answerA}`,
     `Risposta B:\n${answerB}`,
     "Scegli A, B, tie o both_insufficient e restituisci solo l'oggetto strutturato.",

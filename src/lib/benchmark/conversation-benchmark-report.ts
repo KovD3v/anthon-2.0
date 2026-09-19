@@ -1,8 +1,12 @@
-import type {
-  ConversationalDimensions,
-  ConversationComparisonArtifact,
-  ConversationRunArtifact,
+import { z } from "zod";
+import {
+  CONVERSATION_SCENARIO_VERSION,
+  type ConversationalDimensions,
+  type ConversationComparisonArtifact,
+  type ConversationRunArtifact,
+  diagnoseConversationStructure,
 } from "./conversation-benchmark";
+import { CONVERSATIONAL_REALITY_SCENARIOS } from "./conversation-scenarios";
 
 const forbiddenKeys = new Set([
   "apiKey",
@@ -31,7 +35,7 @@ export function parseConversationRun(value: string): ConversationRunArtifact {
   assertSafeJson(parsed);
   if (
     parsed.artifactVersion !== 1 ||
-    parsed.scenarioVersion !== "conversation-v1"
+    parsed.scenarioVersion !== CONVERSATION_SCENARIO_VERSION
   ) {
     throw new Error("Unsupported conversation run artifact version");
   }
@@ -60,7 +64,7 @@ export function parseConversationComparison(
   assertSafeJson(parsed);
   if (
     parsed.artifactVersion !== 1 ||
-    parsed.scenarioVersion !== "conversation-v1"
+    parsed.scenarioVersion !== CONVERSATION_SCENARIO_VERSION
   ) {
     throw new Error("Unsupported conversation comparison artifact version");
   }
@@ -73,6 +77,78 @@ export function parseConversationComparison(
   if (!Number.isFinite(Date.parse(parsed.createdAt)))
     throw new Error("Invalid createdAt");
   return parsed;
+}
+
+const answerArtifactSchema = z.object({
+  source: z.string().max(500).optional(),
+  scenarioVersion: z.literal(CONVERSATION_SCENARIO_VERSION),
+  replicas: z
+    .array(
+      z.object({
+        scenarioId: z.string(),
+        turnIndex: z.number().int().min(0),
+        assistantText: z.string().trim().min(1),
+      }),
+    )
+    .min(1),
+});
+
+const normalized = (text: string) =>
+  text
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("it");
+
+/** Inspect actual supplied response text; lexical checks are not a semantic judge. */
+export function inspectConversationAnswers(value: unknown) {
+  const artifact = answerArtifactSchema.parse(value);
+  const results = artifact.replicas.map((replica) => {
+    const scenario = CONVERSATIONAL_REALITY_SCENARIOS.find(
+      (item) => item.id === replica.scenarioId,
+    );
+    const turn = scenario?.turns[replica.turnIndex];
+    if (!turn)
+      throw new Error(
+        `Unknown scenario turn ${replica.scenarioId}#${replica.turnIndex}`,
+      );
+    const diagnostics = diagnoseConversationStructure(replica.assistantText);
+    const expectations = turn.conversationalExpectations;
+    const text = normalized(replica.assistantText);
+    return {
+      scenarioId: replica.scenarioId,
+      turnIndex: replica.turnIndex,
+      diagnostics,
+      missingContextTerms:
+        expectations?.expectedContextFacts?.filter(
+          (fact) => !text.includes(normalized(fact)),
+        ) ?? [],
+      repeatedQuestionTerms: diagnostics.hasQuestion
+        ? (expectations?.forbiddenRepeatedQuestions?.filter((question) =>
+            text.includes(normalized(question)),
+          ) ?? [])
+        : [],
+      questionPolicyMismatch:
+        expectations?.questionPolicy === "none"
+          ? diagnostics.hasQuestion
+          : expectations?.questionPolicy === "diagnostic"
+            ? !diagnostics.hasQuestion
+            : false,
+      exceedsWordGuide:
+        turn.maxWords !== undefined && diagnostics.wordCount > turn.maxWords,
+    };
+  });
+  return {
+    mode: "supplied-answer-lexical-diagnostics",
+    source: artifact.source ?? "supplied answer artifact",
+    scenarioVersion: artifact.scenarioVersion,
+    answerCount: results.length,
+    semanticCoachingQuality: null,
+    unsupportedMemoryClaimRate: null,
+    judgeStatus: "not_run",
+    limitations:
+      "Exact terms and question punctuation are diagnostics only. Semantic relevance, grouped-question usefulness, safety and unsupported claims require the blinded judge or human review.",
+    results,
+  };
 }
 
 export function formatConversationComparisonReport(

@@ -124,5 +124,25 @@ describe("benchmark/conversation-benchmark-cli", () => {
         {},
       ),
     ).not.toThrow();
+    const inspection = parseConversationBenchmarkArgs([
+      "inspect",
+      "--candidate",
+      "answers.json",
+    ]);
+    expect(inspection.command).toBe("inspect");
+    expect(() =>
+      assertConversationDbMutationAllowed(inspection, {}),
+    ).not.toThrow();
+    expect(() => parseConversationBenchmarkArgs(["inspect"])).toThrow(
+      /candidate/,
+    );
+    expect(() =>
+      parseConversationBenchmarkArgs([
+        "inspect",
+        "--candidate",
+        "answers.json",
+        "--judge",
+      ]),
+    ).toThrow(/offline/);
   });
 });

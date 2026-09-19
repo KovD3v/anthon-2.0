@@ -49,6 +49,11 @@ describe("benchmark/conversation-benchmark-judge", () => {
     expect(prompt).toContain("Storico A");
     expect(prompt).toContain("Storico B");
     expect(prompt).toContain(scenario.title);
+    expect(prompt).toContain("studio, nel lavoro o nello sport");
+    expect(prompt).toContain(
+      "gruppo compatto di domande strettamente correlate",
+    );
+    expect(prompt).toContain("raccomandazione motivata quando richiesta");
     expect(prompt).not.toMatch(/baseline|candidate|openai\/gpt|[a-f0-9]{40}/i);
   });
 

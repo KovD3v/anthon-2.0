@@ -1,0 +1,21 @@
+{
+  "source": "handwritten synthetic controls, not generated model outputs",
+  "scenarioVersion": "conversation-v2",
+  "replicas": [
+    {
+      "scenarioId": "conversation-known-thread-fact",
+      "turnIndex": 1,
+      "assistantText": "Nella pallavolo prova la battuta con un bersaglio preciso."
+    },
+    {
+      "scenarioId": "conversation-known-thread-fact",
+      "turnIndex": 1,
+      "assistantText": "Che sport fai?"
+    },
+    {
+      "scenarioId": "conversation-work-recommendation",
+      "turnIndex": 0,
+      "assistantText": "Consegna la base domani: rispetta la priorità di affidabilità."
+    }
+  ]
+}

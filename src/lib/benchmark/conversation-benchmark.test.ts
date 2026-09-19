@@ -8,7 +8,7 @@ import {
 function artifact(variant: "baseline" | "candidate"): ConversationRunArtifact {
   return {
     artifactVersion: 1,
-    scenarioVersion: "conversation-v1",
+    scenarioVersion: "conversation-v2",
     variant,
     label: variant,
     commit: "a".repeat(40),
@@ -65,7 +65,7 @@ describe("benchmark/conversation-benchmark", () => {
   it.each([
     ["modelId", "different-model", /modelId/],
     ["samples", 2, /samples/],
-    ["scenarioVersion", "conversation-v2", /scenarioVersion/],
+    ["scenarioVersion", "conversation-v1", /scenarioVersion/],
     ["scenarioIds", ["scenario-b"], /scenarioIds/],
   ] as const)("rejects incompatible %s", (field, value, message) => {
     const candidate = artifact("candidate") as unknown as Record<

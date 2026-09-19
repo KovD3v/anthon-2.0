@@ -35,4 +35,28 @@ describe("benchmark/conversation-scenarios", () => {
     const serialized = JSON.stringify(CONVERSATIONAL_REALITY_SCENARIOS);
     expect(serialized).not.toMatch(/@|clerk_|user_/i);
   });
+
+  it("covers study, work, sport and direct recommendations without compulsory questions", () => {
+    const study = CONVERSATIONAL_REALITY_SCENARIOS.find(
+      (scenario) => scenario.id === "conversation-study-grouped-discovery",
+    );
+    const work = CONVERSATIONAL_REALITY_SCENARIOS.find(
+      (scenario) => scenario.id === "conversation-work-recommendation",
+    );
+    const sport = CONVERSATIONAL_REALITY_SCENARIOS.find(
+      (scenario) => scenario.id === "conversation-known-thread-fact",
+    );
+    expect(study?.turns[0].conversationalExpectations?.questionPolicy).toBe(
+      "diagnostic",
+    );
+    expect(study?.turns[1].conversationalExpectations?.adviceReadiness).toBe(
+      "answer_now",
+    );
+    expect(
+      work?.turns.every(
+        (turn) => turn.conversationalExpectations?.questionPolicy === "none",
+      ),
+    ).toBe(true);
+    expect(sport).toBeDefined();
+  });
 });
