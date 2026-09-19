@@ -10,6 +10,13 @@ const mocks = vi.hoisted(() => ({
   getSystemLoad: vi.fn(),
   trackSupportAiUsage: vi.fn(),
   scheduleSupportAiUsage: vi.fn(),
+  requestTypedDecision: vi.fn(),
+  scheduleTypedDecisionUsage: vi.fn(),
+}));
+
+vi.mock("@/lib/ai/typed-decisions", () => ({
+  JEV_MODEL_ID: "typesafe/jev-1.13",
+  requestTypedDecision: mocks.requestTypedDecision,
 }));
 
 vi.mock("@/lib/ai/cost-attribution", () => ({
@@ -35,6 +42,7 @@ vi.mock("./elevenlabs", () => ({ getSystemLoad: mocks.getSystemLoad }));
 vi.mock("@/lib/ai/usage-meter", () => ({
   trackSupportAiUsage: mocks.trackSupportAiUsage,
   scheduleSupportAiUsage: mocks.scheduleSupportAiUsage,
+  scheduleTypedDecisionUsage: mocks.scheduleTypedDecisionUsage,
 }));
 
 import { decideWebVoiceMode } from "./preflight";
@@ -86,6 +94,7 @@ function allowAutomaticVoiceCadence() {
 
 describe("voice/preflight", () => {
   beforeEach(() => {
+    vi.stubEnv("VOICE_SUITABILITY_MODEL_ID", "google/gemini-2.5-flash-lite");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-11T18:00:00.000Z"));
     vi.clearAllMocks();
@@ -94,7 +103,7 @@ describe("voice/preflight", () => {
     );
     mocks.openrouter.mockReturnValue("preflight-model");
     mocks.voiceCount.mockResolvedValue(0);
-    mocks.messageFindMany.mockResolvedValue([]);
+    allowAutomaticVoiceCadence();
     mocks.getSystemLoad.mockResolvedValue(1);
     mocks.trackSupportAiUsage.mockResolvedValue(undefined);
     mocks.scheduleSupportAiUsage.mockImplementation(() => undefined);
@@ -109,6 +118,7 @@ describe("voice/preflight", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });
@@ -259,14 +269,16 @@ describe("voice/preflight", () => {
   });
 
   it("does not start a new web chat with unsolicited audio", async () => {
+    mocks.messageFindMany.mockResolvedValue([]);
     const result = await decideWebVoiceMode(baseParams());
 
     expect(result).toMatchObject({
       mode: "TEXT",
       category: "VOICE_NATURAL",
       reasonCode: "CADENCE_COOLDOWN",
-      source: "classifier",
+      source: "deterministic",
     });
+    expect(mocks.generateText).not.toHaveBeenCalled();
   });
 
   it("propagates request cancellation instead of treating it as a classifier fallback", async () => {
@@ -441,5 +453,62 @@ describe("voice/preflight", () => {
       reasonCode: "EXPLICIT_TEXT",
     });
     expect(mocks.getSystemLoad).not.toHaveBeenCalled();
+  });
+
+  it("uses Jev's typed answer and schedules usage after eligibility passes", async () => {
+    vi.stubEnv("VOICE_SUITABILITY_MODEL_ID", "typesafe/jev-1.13");
+    const typed = {
+      ok: true,
+      choice: "VOICE_NATURAL",
+      confidence: 0.85,
+      modelId: "typesafe/jev-1.13",
+      attempted: true,
+      durationMs: 320,
+      usage: { input_tokens: 100, output_tokens: 20, cost: 0.0000042 },
+    };
+    mocks.requestTypedDecision.mockResolvedValue(typed);
+    const result = await decideWebVoiceMode(baseParams());
+    expect(result).toMatchObject({
+      mode: "VOICE",
+      source: "classifier",
+      classifierDiagnostics: { model: "typesafe/jev-1.13", outcome: "success" },
+    });
+    expect(mocks.scheduleTypedDecisionUsage).toHaveBeenCalledWith(
+      typed,
+      expect.objectContaining({
+        operation: "voice_classification",
+        userId: "user-1",
+      }),
+    );
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("defaults failed Jev decisions to text without a second model call", async () => {
+    vi.stubEnv("VOICE_SUITABILITY_MODEL_ID", "typesafe/jev-1.13");
+    mocks.requestTypedDecision.mockResolvedValue({
+      ok: false,
+      failureCode: "timeout",
+      modelId: "typesafe/jev-1.13",
+      attempted: true,
+      durationMs: 1500,
+    });
+    const result = await decideWebVoiceMode(baseParams());
+    expect(result).toMatchObject({
+      mode: "TEXT",
+      suitabilityConfidence: 0,
+      classifierDiagnostics: { failureCode: "timeout" },
+    });
+    expect(mocks.generateText).not.toHaveBeenCalled();
+  });
+
+  it("skips Jev before inference when a new chat has no eligible automatic category", async () => {
+    vi.stubEnv("VOICE_SUITABILITY_MODEL_ID", "typesafe/jev-1.13");
+    mocks.messageFindMany.mockResolvedValue([]);
+    expect(await decideWebVoiceMode(baseParams())).toMatchObject({
+      mode: "TEXT",
+      reasonCode: "CADENCE_COOLDOWN",
+      source: "deterministic",
+    });
+    expect(mocks.requestTypedDecision).not.toHaveBeenCalled();
   });
 });

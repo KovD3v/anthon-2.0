@@ -2,20 +2,29 @@ import { generateText, Output } from "ai";
 import { recordAiOperationFailure } from "@/lib/ai/cost-attribution";
 import { openrouter } from "@/lib/ai/providers/openrouter";
 import { getOpenRouterProviderOptionsForClassifier } from "@/lib/ai/providers/openrouter-routing";
-import { scheduleSupportAiUsage } from "@/lib/ai/usage-meter";
+import { JEV_MODEL_ID, requestTypedDecision } from "@/lib/ai/typed-decisions";
+import {
+  scheduleSupportAiUsage,
+  scheduleTypedDecisionUsage,
+} from "@/lib/ai/usage-meter";
 import { createLogger } from "@/lib/logger";
 import type { VoiceSuitabilityHint } from "./decision";
 import type { VoiceRequestIntent } from "./policy";
 import {
   buildVoiceSuitabilityPrompt,
+  VOICE_DECISION_CRITERIA,
+  VOICE_DECISION_INSTRUCTIONS,
   voiceSuitabilitySchema,
 } from "./suitability-prompt";
 
 const voiceLogger = createLogger("voice");
-const DEFAULT_SUITABILITY_MODEL =
-  process.env.VOICE_SUITABILITY_MODEL_ID ||
-  process.env.VOICE_PREFLIGHT_MODEL_ID ||
-  "google/gemini-2.5-flash-lite";
+function getSuitabilityModelId() {
+  return (
+    process.env.VOICE_SUITABILITY_MODEL_ID ||
+    process.env.VOICE_PREFLIGHT_MODEL_ID ||
+    JEV_MODEL_ID
+  );
+}
 const DEFAULT_TIMEOUT_MS = 1500;
 const CODE_BLOCK_REGEX = /```[\s\S]*?```/;
 const TABLE_REGEX = /\|[-:]+\|/;
@@ -183,6 +192,7 @@ function buildFailureDiagnostics(
   error: unknown,
   startedAtMs: number,
   timeoutMs: number,
+  modelId: string,
 ): VoiceClassifierDiagnostics {
   const errorChain = getClassifierErrorChain(error);
   const records = errorChain.map(asErrorRecord).filter(Boolean) as Record<
@@ -200,7 +210,7 @@ function buildFailureDiagnostics(
 
   return {
     outcome: "failed",
-    model: DEFAULT_SUITABILITY_MODEL,
+    model: modelId,
     durationMs: Math.max(0, Date.now() - startedAtMs),
     timeoutMs,
     failureCode: classifyClassifierFailure(errorChain),
@@ -289,14 +299,52 @@ export async function classifyVoiceSuitability(
   params.abortSignal?.throwIfAborted();
   const startedAtMs = Date.now();
   const timeoutMs = params.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const modelId = getSuitabilityModelId();
   try {
     const context =
       params.conversationContext
         ?.slice(-4)
         .map((message) => `${message.role}: ${message.content.slice(0, 180)}`)
         .join("\n") || "No recent context.";
+    if (modelId.startsWith("typesafe/jev")) {
+      const decision = await requestTypedDecision({
+        modelId,
+        instructions: VOICE_DECISION_INSTRUCTIONS,
+        criteria: VOICE_DECISION_CRITERIA,
+        state: {
+          userMessage: params.userMessage,
+          assistantText: params.assistantText?.slice(0, 700),
+          recentConversation: context,
+        },
+        timeoutMs,
+        abortSignal: params.abortSignal,
+      });
+      scheduleTypedDecisionUsage(decision, {
+        operation: "voice_classification",
+        userId: params.userId,
+        waitUntil: params.waitUntil,
+      });
+      params.abortSignal?.throwIfAborted();
+      return {
+        category: decision.ok ? decision.choice : "TEXT_PREFERRED",
+        confidence: decision.ok ? decision.confidence : 0,
+        reason: decision.ok ? "typed_decision" : "classifier_failed",
+        classifierDiagnostics: {
+          model: modelId,
+          outcome: decision.ok ? "success" : "failed",
+          durationMs: decision.durationMs,
+          timeoutMs,
+          ...(!decision.ok
+            ? {
+                failureCode: decision.failureCode,
+                statusCode: decision.statusCode,
+              }
+            : {}),
+        },
+      };
+    }
     const result = await generateText({
-      model: openrouter(DEFAULT_SUITABILITY_MODEL),
+      model: openrouter(modelId),
       output: Output.object({ schema: voiceSuitabilitySchema }),
       temperature: 0,
       maxOutputTokens: 80,
@@ -304,7 +352,7 @@ export async function classifyVoiceSuitability(
       abortSignal: params.abortSignal,
       timeout: { totalMs: timeoutMs },
       providerOptions: {
-        openrouter: getClassifierProviderOptions(DEFAULT_SUITABILITY_MODEL),
+        openrouter: getClassifierProviderOptions(modelId),
       },
       prompt: buildVoiceSuitabilityPrompt(
         {
@@ -312,23 +360,17 @@ export async function classifyVoiceSuitability(
           userMessage: params.userMessage,
           assistantText: params.assistantText,
         },
-        DEFAULT_SUITABILITY_MODEL === "nvidia/nemotron-3.5-lightning"
-          ? "nemotron_a"
-          : "baseline",
+        modelId === "nvidia/nemotron-3.5-lightning" ? "nemotron_a" : "baseline",
       ),
     }).catch(async (error: unknown) => {
-      await recordAiOperationFailure(
-        "voice_classification",
-        DEFAULT_SUITABILITY_MODEL,
-        error,
-      );
+      await recordAiOperationFailure("voice_classification", modelId, error);
       throw error;
     });
     scheduleSupportAiUsage(
       {
         operation: "voice_classification",
         userId: params.userId,
-        modelId: DEFAULT_SUITABILITY_MODEL,
+        modelId,
         usage: result.usage,
         providerMetadata: result.providerMetadata,
       },
@@ -341,7 +383,7 @@ export async function classifyVoiceSuitability(
         reason: "classifier_empty",
         classifierDiagnostics: {
           outcome: "empty",
-          model: DEFAULT_SUITABILITY_MODEL,
+          model: modelId,
           durationMs: Math.max(0, Date.now() - startedAtMs),
           timeoutMs,
           failureCode: "invalid_output",
@@ -353,7 +395,7 @@ export async function classifyVoiceSuitability(
       ...result.output,
       classifierDiagnostics: {
         outcome: "success",
-        model: DEFAULT_SUITABILITY_MODEL,
+        model: modelId,
         durationMs: Math.max(0, Date.now() - startedAtMs),
         timeoutMs,
       },
@@ -364,11 +406,12 @@ export async function classifyVoiceSuitability(
       error,
       startedAtMs,
       timeoutMs,
+      modelId,
     );
     voiceLogger.warn(
       "voice.suitability.classifier_failed",
       "Voice suitability classification failed; defaulting to text",
-      { error, classifierDiagnostics },
+      { classifierDiagnostics },
     );
     return {
       category: "TEXT_PREFERRED",

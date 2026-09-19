@@ -20,7 +20,11 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 
 import { recordAiOperation } from "./cost-attribution";
-import { scheduleSupportAiUsage, trackSupportAiUsage } from "./usage-meter";
+import {
+  scheduleSupportAiUsage,
+  scheduleTypedDecisionUsage,
+  trackSupportAiUsage,
+} from "./usage-meter";
 
 describe("ai/usage-meter", () => {
   beforeEach(() => {
@@ -155,5 +159,36 @@ describe("ai/usage-meter", () => {
 
     expect(waitUntil).toHaveBeenCalledWith(expect.any(Promise));
     expect(mocks.incrementTokenUsage).toHaveBeenCalledTimes(1);
+  });
+
+  it("meters typed provider usage once and keeps failed attempts outside quota totals", () => {
+    mocks.incrementTokenUsage.mockResolvedValue({});
+    const waitUntil = vi.fn();
+    const metadata = {
+      modelId: "typesafe/jev-1.13",
+      durationMs: 300,
+      attempted: true,
+      usage: { input_tokens: 100, output_tokens: 20, cost: 0.0000042 },
+    };
+    scheduleTypedDecisionUsage(
+      { ...metadata, ok: true, choice: "candidate", confidence: 1 },
+      { userId: "user-1", operation: "memory_gate", waitUntil },
+    );
+    expect(mocks.incrementTokenUsage).toHaveBeenCalledExactlyOnceWith(
+      "user-1",
+      100,
+      20,
+      0.0000042,
+      0,
+    );
+    expect(waitUntil).toHaveBeenCalledOnce();
+    scheduleTypedDecisionUsage(
+      { ...metadata, ok: false, failureCode: "provider_error" },
+      { userId: "user-1", operation: "memory_gate" },
+    );
+    expect(mocks.incrementTokenUsage).toHaveBeenCalledOnce();
+    expect(recordAiOperation).toHaveBeenLastCalledWith(
+      expect.objectContaining({ failed: true, operation: "memory_gate" }),
+    );
   });
 });

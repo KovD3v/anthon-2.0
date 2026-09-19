@@ -278,4 +278,51 @@ describe("voice/decision", () => {
       }),
     );
   });
+
+  it("does not classify when both automatic categories are still in cooldown", async () => {
+    mocks.messageFindMany.mockResolvedValue([
+      { type: "AUDIO", createdAt: new Date(now.getTime() - 60_000) },
+    ]);
+    const classify = vi.fn();
+    const decision = await decideVoiceDelivery({
+      ...baseParams(),
+      suitability: classify,
+    });
+    expect(decision.reason.code).toBe("CADENCE_COOLDOWN");
+    expect(classify).not.toHaveBeenCalled();
+  });
+
+  it("still classifies when the strong category can pass before natural cadence", async () => {
+    mocks.messageFindMany.mockResolvedValue([
+      { type: "TEXT", createdAt: new Date(now.getTime() - 30_000) },
+      { type: "AUDIO", createdAt: new Date(now.getTime() - 60_000) },
+    ]);
+    const classify = vi
+      .fn()
+      .mockResolvedValue({ category: "VOICE_STRONG", confidence: 0.9 });
+    const decision = await decideVoiceDelivery({
+      ...baseParams(),
+      suitability: classify,
+    });
+    expect(decision.shouldGenerateVoice).toBe(true);
+    expect(classify).toHaveBeenCalledOnce();
+  });
+
+  it("does not classify in yellow capacity when only natural cadence could pass", async () => {
+    mocks.messageFindMany.mockResolvedValue([
+      { type: "TEXT", createdAt: new Date(now.getTime() - 30_000) },
+    ]);
+    const classify = vi.fn();
+    const decision = await decideVoiceDelivery({
+      ...baseParams(),
+      suitability: classify,
+      systemLoad: 0.2,
+      planConfig: {
+        ...config,
+        cadence: { ...config.cadence, strongMinTurns: 5, naturalMinTurns: 1 },
+      },
+    });
+    expect(decision.reason.code).toBe("CADENCE_COOLDOWN");
+    expect(classify).not.toHaveBeenCalled();
+  });
 });

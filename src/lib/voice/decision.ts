@@ -288,6 +288,21 @@ export async function decideVoiceDelivery(
   }
 
   if (!suitability) {
+    const passesCadence = (minTurns: number, cooldownMs: number) =>
+      history.turnsSinceAudio >= minTurns ||
+      (history.millisecondsSinceAudio !== null &&
+        history.millisecondsSinceAudio >= cooldownMs);
+    const cadence = params.planConfig.cadence;
+    const strongEligible = passesCadence(
+      cadence.strongMinTurns,
+      cadence.strongCooldownMs,
+    );
+    const naturalEligible =
+      capacityState !== "YELLOW" &&
+      passesCadence(cadence.naturalMinTurns, cadence.naturalCooldownMs);
+    if (!strongEligible && !naturalEligible) {
+      return result(false, category, capacityState, "CADENCE_COOLDOWN", false);
+    }
     suitability = await (
       params.suitability as () => Promise<VoiceSuitabilityHint>
     )();

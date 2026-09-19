@@ -90,6 +90,7 @@ function allowAutomaticVoiceCadence() {
 
 describe("voice/funnel", () => {
   beforeEach(() => {
+    vi.stubEnv("VOICE_SUITABILITY_MODEL_ID", "google/gemini-2.5-flash-lite");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-11T12:00:00.000Z"));
     vi.clearAllMocks();
@@ -114,6 +115,7 @@ describe("voice/funnel", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.useRealTimers();
     vi.restoreAllMocks();
   });

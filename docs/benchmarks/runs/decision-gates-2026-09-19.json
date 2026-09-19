@@ -1,0 +1,831 @@
+{
+  "generatedAt": "2026-09-19T10:39:50.578Z",
+  "model": "typesafe/jev-1.13",
+  "baselineModel": "google/gemini-2.5-flash-lite",
+  "requests": 41,
+  "caveat": "Small fictional offline sample. No real-user quality or production latency claim. Baseline failures with absent usage are unknown-cost, not free.",
+  "summary": {
+    "memoryFalseNegatives": 0,
+    "memoryExpectedCandidates": 18,
+    "memorySkipped": 6,
+    "memoryCases": 26,
+    "memoryJev": {
+      "calls": 17,
+      "successes": 17,
+      "p50Ms": 334,
+      "p95Ms": 752,
+      "reportedCostUsd": 0.00037098599999999996,
+      "unknownCostCalls": 0
+    },
+    "voiceJev": {
+      "calls": 12,
+      "successes": 12,
+      "p50Ms": 309,
+      "p95Ms": 406,
+      "reportedCostUsd": 0.000271572,
+      "unknownCostCalls": 0,
+      "matched": 11
+    },
+    "voiceBaseline": {
+      "calls": 12,
+      "successes": 12,
+      "p50Ms": 540,
+      "p95Ms": 1142,
+      "reportedCostUsd": 0.0003592,
+      "unknownCostCalls": 0,
+      "matched": 9
+    }
+  },
+  "memory": [
+    {
+      "id": "empty",
+      "expected": false,
+      "extract": false,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "thanks",
+      "expected": false,
+      "extract": false,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "thanks-en",
+      "expected": false,
+      "extract": false,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "save-short",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "correct-short",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "correct-en",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "confirm-save",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "short-number",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "short-no",
+      "expected": true,
+      "extract": true,
+      "source": "deterministic",
+      "durationMs": 0
+    },
+    {
+      "id": "durable-hobby",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 752,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 1,
+      "usage": {
+        "input_tokens": 517,
+        "output_tokens": 41,
+        "cost": 0.000021714
+      }
+    },
+    {
+      "id": "new-goal",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 401,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 1,
+      "usage": {
+        "input_tokens": 519,
+        "output_tokens": 41,
+        "cost": 0.000021798
+      }
+    },
+    {
+      "id": "temporary-deadline",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 320,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 1,
+      "usage": {
+        "input_tokens": 517,
+        "output_tokens": 41,
+        "cost": 0.000021714
+      }
+    },
+    {
+      "id": "lived-evidence",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 331,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.97,
+      "usage": {
+        "input_tokens": 523,
+        "output_tokens": 41,
+        "cost": 0.000021966
+      }
+    },
+    {
+      "id": "negated-identity",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 316,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.99,
+      "usage": {
+        "input_tokens": 516,
+        "output_tokens": 41,
+        "cost": 0.000021672
+      }
+    },
+    {
+      "id": "negated-preference",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 400,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.94,
+      "usage": {
+        "input_tokens": 517,
+        "output_tokens": 41,
+        "cost": 0.000021714
+      }
+    },
+    {
+      "id": "contradiction",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 334,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.98,
+      "usage": {
+        "input_tokens": 524,
+        "output_tokens": 41,
+        "cost": 0.000022008
+      }
+    },
+    {
+      "id": "referenced-person",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 356,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.99,
+      "usage": {
+        "input_tokens": 522,
+        "output_tokens": 41,
+        "cost": 0.000021924
+      }
+    },
+    {
+      "id": "sensitive-fact",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 360,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 1,
+      "usage": {
+        "input_tokens": 520,
+        "output_tokens": 41,
+        "cost": 0.00002184
+      }
+    },
+    {
+      "id": "tentative-change",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 299,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.92,
+      "usage": {
+        "input_tokens": 520,
+        "output_tokens": 41,
+        "cost": 0.00002184
+      }
+    },
+    {
+      "id": "ambiguous-context",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 312,
+      "attempted": true,
+      "ok": true,
+      "choice": "uncertain",
+      "confidence": 0.8,
+      "usage": {
+        "input_tokens": 515,
+        "output_tokens": 43,
+        "cost": 0.00002163
+      }
+    },
+    {
+      "id": "assistant-not-source",
+      "expected": false,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 435,
+      "attempted": true,
+      "ok": true,
+      "choice": "no_memory",
+      "confidence": 0.79,
+      "usage": {
+        "input_tokens": 537,
+        "output_tokens": 42,
+        "cost": 0.000022554
+      }
+    },
+    {
+      "id": "generic-question",
+      "expected": false,
+      "extract": false,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 339,
+      "attempted": true,
+      "ok": true,
+      "choice": "no_memory",
+      "confidence": 1,
+      "usage": {
+        "input_tokens": 514,
+        "output_tokens": 42,
+        "cost": 0.000021588
+      }
+    },
+    {
+      "id": "factual-question",
+      "expected": false,
+      "extract": false,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 311,
+      "attempted": true,
+      "ok": true,
+      "choice": "no_memory",
+      "confidence": 0.99,
+      "usage": {
+        "input_tokens": 512,
+        "output_tokens": 42,
+        "cost": 0.000021504
+      }
+    },
+    {
+      "id": "coordination",
+      "expected": false,
+      "extract": false,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 297,
+      "attempted": true,
+      "ok": true,
+      "choice": "no_memory",
+      "confidence": 0.98,
+      "usage": {
+        "input_tokens": 515,
+        "output_tokens": 42,
+        "cost": 0.00002163
+      }
+    },
+    {
+      "id": "injected-no-memory",
+      "expected": true,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 362,
+      "attempted": true,
+      "ok": true,
+      "choice": "candidate",
+      "confidence": 0.94,
+      "usage": {
+        "input_tokens": 523,
+        "output_tokens": 41,
+        "cost": 0.000021966
+      }
+    },
+    {
+      "id": "quoted-fiction",
+      "expected": false,
+      "extract": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 263,
+      "attempted": true,
+      "ok": true,
+      "choice": "no_memory",
+      "confidence": 0.36,
+      "usage": {
+        "input_tokens": 522,
+        "output_tokens": 42,
+        "cost": 0.000021924
+      }
+    }
+  ],
+  "voice": [
+    {
+      "id": "reflection-it",
+      "expected": [
+        "VOICE_NATURAL"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 289,
+      "attempted": true,
+      "ok": true,
+      "choice": "VOICE_NATURAL",
+      "confidence": 0.64,
+      "usage": {
+        "input_tokens": 550,
+        "output_tokens": 57,
+        "cost": 0.0000231
+      }
+    },
+    {
+      "id": "reflection-it",
+      "expected": [
+        "VOICE_NATURAL"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 551,
+      "usage": {
+        "input_tokens": 174,
+        "output_tokens": 35,
+        "cost": 0.0000314
+      }
+    },
+    {
+      "id": "reflection-en",
+      "expected": [
+        "VOICE_NATURAL",
+        "VOICE_STRONG"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 284,
+      "attempted": true,
+      "ok": true,
+      "choice": "VOICE_NATURAL",
+      "confidence": 0.64,
+      "usage": {
+        "input_tokens": 541,
+        "output_tokens": 57,
+        "cost": 0.000022722
+      }
+    },
+    {
+      "id": "reflection-en",
+      "expected": [
+        "VOICE_NATURAL",
+        "VOICE_STRONG"
+      ],
+      "category": "VOICE_STRONG",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 562,
+      "usage": {
+        "input_tokens": 170,
+        "output_tokens": 33,
+        "cost": 0.0000302
+      }
+    },
+    {
+      "id": "story",
+      "expected": [
+        "VOICE_NATURAL"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 274,
+      "attempted": true,
+      "ok": true,
+      "choice": "VOICE_NATURAL",
+      "confidence": 0.59,
+      "usage": {
+        "input_tokens": 548,
+        "output_tokens": 57,
+        "cost": 0.000023016
+      }
+    },
+    {
+      "id": "story",
+      "expected": [
+        "VOICE_NATURAL"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 663,
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 34,
+        "cost": 0.0000307
+      }
+    },
+    {
+      "id": "support",
+      "expected": [
+        "VOICE_STRONG"
+      ],
+      "category": "VOICE_STRONG",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 338,
+      "attempted": true,
+      "ok": true,
+      "choice": "VOICE_STRONG",
+      "confidence": 0.35,
+      "usage": {
+        "input_tokens": 555,
+        "output_tokens": 56,
+        "cost": 0.00002331
+      }
+    },
+    {
+      "id": "support",
+      "expected": [
+        "VOICE_STRONG"
+      ],
+      "category": "VOICE_STRONG",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 479,
+      "usage": {
+        "input_tokens": 180,
+        "output_tokens": 33,
+        "cost": 0.0000312
+      }
+    },
+    {
+      "id": "encouragement",
+      "expected": [
+        "VOICE_STRONG"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": false,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 309,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_REQUIRED",
+      "confidence": 0.37,
+      "usage": {
+        "input_tokens": 551,
+        "output_tokens": 55,
+        "cost": 0.000023142
+      }
+    },
+    {
+      "id": "encouragement",
+      "expected": [
+        "VOICE_STRONG"
+      ],
+      "category": "VOICE_STRONG",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 563,
+      "usage": {
+        "input_tokens": 177,
+        "output_tokens": 33,
+        "cost": 0.0000309
+      }
+    },
+    {
+      "id": "routine",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 406,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_REQUIRED",
+      "confidence": 0.99,
+      "usage": {
+        "input_tokens": 540,
+        "output_tokens": 55,
+        "cost": 0.00002268
+      }
+    },
+    {
+      "id": "routine",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_PREFERRED",
+      "matched": false,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 528,
+      "usage": {
+        "input_tokens": 173,
+        "output_tokens": 32,
+        "cost": 0.0000301
+      }
+    },
+    {
+      "id": "explicit-text",
+      "expected": [
+        "TEXT_REQUIRED",
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 315,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_REQUIRED",
+      "confidence": 0.92,
+      "usage": {
+        "input_tokens": 543,
+        "output_tokens": 55,
+        "cost": 0.000022806
+      }
+    },
+    {
+      "id": "explicit-text",
+      "expected": [
+        "TEXT_REQUIRED",
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 1142,
+      "usage": {
+        "input_tokens": 168,
+        "output_tokens": 32,
+        "cost": 0.0000296
+      }
+    },
+    {
+      "id": "exact-command",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 316,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_REQUIRED",
+      "confidence": 0.96,
+      "usage": {
+        "input_tokens": 519,
+        "output_tokens": 55,
+        "cost": 0.000021798
+      }
+    },
+    {
+      "id": "exact-command",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 494,
+      "usage": {
+        "input_tokens": 148,
+        "output_tokens": 35,
+        "cost": 0.0000288
+      }
+    },
+    {
+      "id": "table",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 353,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_REQUIRED",
+      "confidence": 0.84,
+      "usage": {
+        "input_tokens": 550,
+        "output_tokens": 55,
+        "cost": 0.0000231
+      }
+    },
+    {
+      "id": "table",
+      "expected": [
+        "TEXT_REQUIRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 540,
+      "usage": {
+        "input_tokens": 177,
+        "output_tokens": 34,
+        "cost": 0.0000313
+      }
+    },
+    {
+      "id": "factual",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_PREFERRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 301,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_PREFERRED",
+      "confidence": 0.97,
+      "usage": {
+        "input_tokens": 518,
+        "output_tokens": 57,
+        "cost": 0.000021756
+      }
+    },
+    {
+      "id": "factual",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_PREFERRED",
+      "matched": true,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 577,
+      "usage": {
+        "input_tokens": 146,
+        "output_tokens": 32,
+        "cost": 0.0000274
+      }
+    },
+    {
+      "id": "coordination",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_PREFERRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 299,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_PREFERRED",
+      "confidence": 0.98,
+      "usage": {
+        "input_tokens": 529,
+        "output_tokens": 57,
+        "cost": 0.000022218
+      }
+    },
+    {
+      "id": "coordination",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "VOICE_NATURAL",
+      "matched": false,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 520,
+      "usage": {
+        "input_tokens": 155,
+        "output_tokens": 34,
+        "cost": 0.0000291
+      }
+    },
+    {
+      "id": "link-only",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_PREFERRED",
+      "matched": true,
+      "source": "jev",
+      "modelId": "typesafe/jev-1.13",
+      "durationMs": 383,
+      "attempted": true,
+      "ok": true,
+      "choice": "TEXT_PREFERRED",
+      "confidence": 0.94,
+      "usage": {
+        "input_tokens": 522,
+        "output_tokens": 57,
+        "cost": 0.000021924
+      }
+    },
+    {
+      "id": "link-only",
+      "expected": [
+        "TEXT_PREFERRED"
+      ],
+      "category": "TEXT_REQUIRED",
+      "matched": false,
+      "source": "baseline",
+      "ok": true,
+      "durationMs": 528,
+      "usage": {
+        "input_tokens": 149,
+        "output_tokens": 34,
+        "cost": 0.0000285
+      }
+    }
+  ]
+}

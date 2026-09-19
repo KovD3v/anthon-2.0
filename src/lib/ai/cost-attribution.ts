@@ -11,6 +11,7 @@ export type AiOperation =
   | "model_comparison"
   | "benchmark"
   | "memory_extraction"
+  | "memory_gate"
   | "thread_summary"
   | "session_summary"
   | "session_archive"

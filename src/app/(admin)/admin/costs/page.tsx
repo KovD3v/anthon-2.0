@@ -348,6 +348,7 @@ const OPERATION_LABELS: Record<string, string> = {
   model_comparison: "Confronto modelli",
   benchmark: "Benchmark",
   memory_extraction: "Estrazione memoria",
+  memory_gate: "Selezione candidati memoria",
   thread_summary: "Riassunto conversazione",
   session_summary: "Riassunto sessione",
   session_archive: "Archiviazione sessione",

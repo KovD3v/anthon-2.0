@@ -1,8 +1,13 @@
 import type { LanguageModelUsage } from "ai";
 import { createLogger } from "@/lib/logger";
 import { incrementTokenUsage } from "@/lib/rate-limit";
-import { type AiOperation, recordAiOperation } from "./cost-attribution";
+import {
+  type AiOperation,
+  recordAiOperation,
+  scheduleCostAttribution,
+} from "./cost-attribution";
 import { calculateCost } from "./tokenlens";
+import type { TypedDecisionResult } from "./typed-decisions";
 
 const usageMeterLogger = createLogger("usage");
 
@@ -111,4 +116,30 @@ export function scheduleSupportAiUsage(
     }
   }
   void task;
+}
+
+export function scheduleTypedDecisionUsage(
+  decision: TypedDecisionResult<string>,
+  input: {
+    userId: string;
+    operation: "memory_gate" | "voice_classification";
+    waitUntil?: (promise: Promise<unknown>) => void;
+  },
+): void {
+  if (!decision.attempted) return;
+  const usage = {
+    operation: input.operation,
+    userId: input.userId,
+    modelId: decision.modelId,
+    providerMetadata: { openrouter: { usage: decision.usage } },
+  };
+  if (decision.ok) {
+    scheduleSupportAiUsage(
+      usage,
+      input.waitUntil ??
+        ((task) => scheduleCostAttribution(task.then(() => undefined))),
+    );
+  } else {
+    scheduleCostAttribution(recordAiOperation({ ...usage, failed: true }));
+  }
 }

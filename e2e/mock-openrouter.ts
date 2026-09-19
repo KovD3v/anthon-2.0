@@ -12,6 +12,10 @@ interface OpenRouterRequest {
   model?: string;
   messages?: OpenRouterMessage[];
   stream?: boolean;
+  questions?: Record<
+    string,
+    { type: string; criteria: Record<string, string> }
+  >;
 }
 
 function messageText(message: OpenRouterMessage | undefined) {
@@ -150,7 +154,12 @@ const server = createServer(async (request, response) => {
     return;
   }
 
-  if (request.method !== "POST" || request.url !== "/api/v1/chat/completions") {
+  if (
+    request.method !== "POST" ||
+    !["/api/v1/chat/completions", "/api/alpha/decisions"].includes(
+      request.url ?? "",
+    )
+  ) {
     response.writeHead(404, { "Content-Type": "application/json" });
     response.end('{"error":"not found"}');
     return;
@@ -158,6 +167,36 @@ const server = createServer(async (request, response) => {
 
   try {
     const payload = await readJson(request);
+    if (request.url === "/api/alpha/decisions") {
+      const answers = Object.fromEntries(
+        Object.entries(payload.questions ?? {}).map(([key, question]) => {
+          const choice =
+            "candidate" in question.criteria
+              ? "candidate"
+              : "TEXT_PREFERRED" in question.criteria
+                ? "TEXT_PREFERRED"
+                : Object.keys(question.criteria)[0];
+          return [
+            key,
+            {
+              type: "choice",
+              choice,
+              confidence: 1,
+              probabilities: { [choice ?? ""]: 1 },
+            },
+          ];
+        }),
+      );
+      response.writeHead(200, { "Content-Type": "application/json" });
+      response.end(
+        JSON.stringify({
+          model: payload.model,
+          answers,
+          usage: { input_tokens: 20, output_tokens: 10, cost: 0 },
+        }),
+      );
+      return;
+    }
     const text = chooseResponse(payload);
 
     if (!payload.stream) {
