@@ -185,7 +185,7 @@ export default function AdminCostsPage() {
         <CardHeader>
           <CardTitle>Costi osservati per operazione</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Aggregati anonimi degli ultimi {data.attribution.retentionDays}{" "}
+            Aggregati anonimi conservati per {data.attribution.retentionDays}{" "}
             giorni.
             {data.attribution.observedFrom &&
               ` Dati dal ${new Date(data.attribution.observedFrom).toLocaleDateString("it-IT")}.`}{" "}

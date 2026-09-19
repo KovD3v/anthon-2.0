@@ -177,12 +177,13 @@ considered, allowed, called, succeeded, useful, and utilized counts plus recall
 mode, counts, bounded timings, and degradation. It excludes facts, queries,
 excerpts, URLs, source IDs, arguments, and tool results.
 
-The offline benchmark runs with `bun run benchmark:memory-recall`. It defaults
-to 30 fictionalized Italian fixtures and requires explicit `--allow-db-read`
-and `--allow-db-mutation` authority before accessing or changing database data.
-The report defines its fixture version, source, filters, action recall/overuse,
-fact and evidence quality, duplicate/conflict safety, unsupported claims,
-latency percentiles, and cost.
+The offline benchmark runs with `bun run benchmark:memory-recall`. It evaluates
+30 fictionalized planner fixtures and production memory functions against a
+synthetic database boundary, without connecting to a database or model. Use
+`--planner-only` to skip the memory lifecycle checks. Reports separate observed
+retrieval results from unmeasured answer quality, which remains `null`. See
+[chat quality evaluation](benchmarks/chat-quality-evaluation.md) for answer
+inspection and live comparison commands.
 
 ### Prompt modes
 
