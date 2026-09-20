@@ -433,6 +433,9 @@ describe("Jev memory review", () => {
       "Memory review decisions",
       {
         mode: "shadow",
+        applied: false,
+        attempted: true,
+        modelId: "typesafe/jev-1.13",
         candidateCount: 4,
         rejectCount: 1,
         equivalentCount: 1,

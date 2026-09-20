@@ -90,6 +90,40 @@ describe("logger/config", () => {
     expect(shouldLog("debug", "usage")).toBe(true);
   });
 
+  it.each([
+    ["development", "silent"],
+    ["test", "silent"],
+    ["production", "error"],
+  ] as const)(
+    "keeps decisions quiet by default in %s",
+    (environment, level) => {
+      vi.stubEnv("NODE_ENV", environment);
+      vi.stubEnv("APP_LOG_LEVEL", "");
+      vi.stubEnv("APP_LOG_DOMAIN_LEVELS", "");
+
+      expect(getConfiguredLogLevel("decisions")).toBe(level);
+      expect(shouldLog("info", "decisions")).toBe(false);
+      expect(shouldLog("error", "decisions")).toBe(
+        environment === "production",
+      );
+    },
+  );
+
+  it("enables decision telemetry without enabling other AI logs", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_LOG_LEVEL", "");
+    vi.stubEnv("APP_LOG_DOMAIN_LEVELS", "decisions:info");
+    vi.stubEnv("APP_LOG_EXCLUDE_EVENTS", "");
+
+    expect(shouldLogEvent("info", "decisions", "ai.memory.review")).toBe(true);
+    expect(shouldLog("debug", "decisions")).toBe(false);
+    expect(shouldLog("info", "ai")).toBe(false);
+    expect(shouldLog("info", "usage")).toBe(false);
+
+    vi.stubEnv("APP_LOG_EXCLUDE_EVENTS", "ai.memory.review");
+    expect(shouldLogEvent("info", "decisions", "ai.memory.review")).toBe(false);
+  });
+
   it("supports APP_LOG_EXCLUDE_EVENTS patterns", () => {
     vi.stubEnv("NODE_ENV", "development");
     delete process.env.APP_LOG_LEVEL;

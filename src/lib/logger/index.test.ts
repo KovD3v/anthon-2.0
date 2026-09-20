@@ -84,6 +84,34 @@ describe("logger/index", () => {
     expect(errorSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("emits an isolated structured decision event with the domain override", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_LOG_DOMAIN_LEVELS", "decisions:info");
+    vi.stubEnv("APP_LOG_EXCLUDE_EVENTS", "");
+    const data = {
+      mode: "shadow",
+      attempted: true,
+      candidateCount: 2,
+      rejectCount: 1,
+      durationMs: 350,
+      failureCode: null,
+    };
+    createLogger("ai").info("ai.stream.started", "Stream started");
+    createLogger("decisions").info(
+      "ai.memory.review",
+      "Memory review decisions",
+      data,
+    );
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(logSpy.mock.calls[0][0]))).toMatchObject({
+      level: "info",
+      domain: "decisions",
+      event: "ai.memory.review",
+      data,
+    });
+  });
+
   it("adds request context and propagates it inside callback", async () => {
     const logger = createLogger("organizations");
     const request = new Request("http://localhost/api/usage", {

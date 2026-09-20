@@ -201,6 +201,7 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
             ),
             describe: (fact) =>
               `[${fact.category}] ${fact.key}: ${fact.content}${formatMemoryValidity(fact)}`,
+            memorySubject: (fact) => fact.subject,
           })
         : result.facts;
       const validFacts = rankedFacts.filter(

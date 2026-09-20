@@ -14,7 +14,16 @@ const FACT_CACHE_TTL_MS = 30_000;
 
 type StoredMemoryValue = {
   content?: unknown;
+  _subject?: unknown;
 };
+
+export type MemorySubject = "ACCOUNT_HOLDER" | "REFERENCED_PERSON";
+
+function validMemorySubject(value: unknown): MemorySubject | undefined {
+  return value === "ACCOUNT_HOLDER" || value === "REFERENCED_PERSON"
+    ? value
+    : undefined;
+}
 
 type FactCacheEntry = {
   facts: RecalledFact[];
@@ -45,6 +54,7 @@ export type RecalledFact = {
   id: string;
   key: string;
   content: string;
+  subject?: MemorySubject;
   category: string;
   origin: "EXPLICIT" | "INFERRED" | "CONFIRMED" | "MIGRATED";
   confidence: number;
@@ -57,6 +67,8 @@ export type FactMutationInput = {
   userId: string;
   key: string;
   value: string;
+  /** Explicit attribution from the source candidate; omitted for unverified writes. */
+  subject?: MemorySubject;
   category: string;
   confidence: number;
   sensitivity: "LOW" | "HIGH";
@@ -100,11 +112,13 @@ function projectFact(memory: {
 }): RecalledFact | null {
   const value = memory.value as StoredMemoryValue;
   if (typeof value.content !== "string" || !value.content.trim()) return null;
+  const subject = validMemorySubject(value._subject);
 
   return {
     id: memory.id,
     key: memory.key,
     content: value.content.trim(),
+    ...(subject ? { subject } : {}),
     category: memory.category,
     origin: memory.origin,
     confidence: memory.confidence,
@@ -291,8 +305,10 @@ function storedValue(
   timestamp: string,
   revisionId: string,
 ) {
+  const subject = validMemorySubject(input.subject);
   return {
     content: input.value.trim(),
+    ...(subject ? { _subject: subject } : {}),
     category: input.category,
     confidence: input.confidence,
     updatedAt: timestamp,
@@ -383,6 +399,8 @@ export async function rememberFactInTransaction(
     previous.sourceMessageId === input.sourceMessageId &&
     previous.category === input.category &&
     previous.sensitivity === input.sensitivity &&
+    validMemorySubject((previous.value as StoredMemoryValue)?._subject) ===
+      validMemorySubject(input.subject) &&
     (input.expiresAt === undefined ||
       (previous.expiresAt?.getTime() ?? null) ===
         (input.expiresAt?.getTime() ?? null)) &&

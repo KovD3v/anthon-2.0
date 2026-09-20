@@ -510,7 +510,12 @@ describe("ai/tools/memory", () => {
   it("ranks only authorized live fact reads and preserves expiry filtering", async () => {
     const facts = [
       { key: "event", content: "Expired", expiresAt: new Date(0) },
-      { key: "my_work", content: "Useful", expiresAt: null },
+      {
+        key: "my_work",
+        content: "Useful",
+        expiresAt: null,
+        subject: "ACCOUNT_HOLDER",
+      },
       { key: "sister_sport", content: "Unrelated", expiresAt: null },
     ];
     mocks.recallFacts.mockResolvedValue({ facts, degraded: false });
@@ -528,6 +533,12 @@ describe("ai/tools/memory", () => {
       }),
     );
     expect(result.data.map((fact) => fact.value)).toEqual(["Useful"]);
+    const subject = mocks.rankRetrievedItems.mock.calls[0][0].memorySubject;
+    expect(subject(facts[1])).toBe("ACCOUNT_HOLDER");
+    expect(subject(facts[2])).toBeUndefined();
+    expect(subject({ ...facts[2], subject: "REFERENCED_PERSON" })).toBe(
+      "REFERENCED_PERSON",
+    );
 
     mocks.rankRetrievedItems.mockClear();
     const legacy = createMemoryTools("user-1")

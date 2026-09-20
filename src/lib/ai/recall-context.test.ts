@@ -42,6 +42,7 @@ describe("recall context", () => {
           id: "fact-secret",
           key: "sport",
           content: "Tennis",
+          subject: "ACCOUNT_HOLDER",
           category: "sport",
           confidence: 1,
         },
@@ -94,7 +95,18 @@ describe("recall context", () => {
       answers: input.questions.recall
         ? { recall: { choice: "recall", confidence: 0.95, probability: 0.95 } }
         : {
-            candidate_0: {
+            scope: { choice: "holder", confidence: 0.99, probability: 0.99 },
+            subject_0: {
+              choice: "requested_person",
+              confidence: 0.95,
+              probability: 0.95,
+            },
+            currency_0: {
+              choice: "applicable",
+              confidence: 0.95,
+              probability: 0.95,
+            },
+            topic_0: {
               choice: "relevant",
               confidence: 0.9,
               probability: 0.9,
@@ -130,6 +142,14 @@ describe("recall context", () => {
       }),
     );
     expect(result.evidenceCount).toBe(1);
+    expect(mocks.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        state: expect.objectContaining({
+          candidates: [expect.objectContaining({ subject: "ACCOUNT_HOLDER" })],
+        }),
+        questions: expect.objectContaining({ scope: expect.anything() }),
+      }),
+    );
   });
 
   it("does not spend the fact database deadline waiting on relevance and rechecks expiry afterward", async () => {
@@ -170,12 +190,32 @@ describe("recall context", () => {
                 durationMs: 300,
                 attempted: true,
                 answers: {
-                  candidate_0: {
+                  subject_0: {
+                    choice: "requested_person",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
+                  currency_0: {
+                    choice: "applicable",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
+                  topic_0: {
                     choice: "relevant",
                     confidence: 0.95,
                     probability: 0.95,
                   },
-                  candidate_1: {
+                  subject_1: {
+                    choice: "requested_person",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
+                  currency_1: {
+                    choice: "applicable",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
+                  topic_1: {
                     choice: "relevant",
                     confidence: 0.95,
                     probability: 0.95,

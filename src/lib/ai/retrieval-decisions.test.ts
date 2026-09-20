@@ -141,32 +141,29 @@ describe("Jev retrieval decisions", () => {
     "The layout you proposed needs a shorter introduction.",
     "L’apertura che avevi indicato per il seminario è troppo formale.",
     "Vorrei adattare quegli esercizi al mio laboratorio.",
-  ])(
-    "checks a past-advice or plural reference: %s",
-    async (message) => {
-      const input = {
-        ...recallInput(),
-        message,
-        plan: planRecall({ message, decision: active, isGuest: false }),
-      };
-      expect(input.plan.conversations.enabled).toBe(false);
-      expect((await refineRecallPlan(input)).conversations).toMatchObject({
-        enabled: true,
-        allowCrossChannel: false,
-      });
-      mocks.request.mockResolvedValue(
-        result({
-          recall: {
-            choice: "self_contained",
-            confidence: 0.99,
-            probability: 0.99,
-          },
-        }),
-      );
-      expect(await refineRecallPlan(input)).toBe(input.plan);
-      expect(mocks.request).toHaveBeenCalledTimes(2);
-    },
-  );
+  ])("checks a past-advice or plural reference: %s", async (message) => {
+    const input = {
+      ...recallInput(),
+      message,
+      plan: planRecall({ message, decision: active, isGuest: false }),
+    };
+    expect(input.plan.conversations.enabled).toBe(false);
+    expect((await refineRecallPlan(input)).conversations).toMatchObject({
+      enabled: true,
+      allowCrossChannel: false,
+    });
+    mocks.request.mockResolvedValue(
+      result({
+        recall: {
+          choice: "self_contained",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+      }),
+    );
+    expect(await refineRecallPlan(input)).toBe(input.plan);
+    expect(mocks.request).toHaveBeenCalledTimes(2);
+  });
 
   it("requires recent textual evidence and skips self-contained requests", async () => {
     await refineRecallPlan({ ...recallInput(), recentMessages: [] });
@@ -195,27 +192,39 @@ describe("Jev retrieval decisions", () => {
   it("batches candidates and retains uncertain evidence in its original relative order", async () => {
     mocks.request.mockResolvedValue(
       result({
-        candidate_0: {
+        subject_2: {
+          choice: "requested_person",
+          confidence: 1,
+          probability: 1,
+        },
+        currency_2: { choice: "applicable", confidence: 1, probability: 1 },
+        subject_4: {
+          choice: "requested_person",
+          confidence: 1,
+          probability: 1,
+        },
+        currency_4: { choice: "applicable", confidence: 1, probability: 1 },
+        topic_0: {
           choice: "irrelevant",
           confidence: 0.99,
           probability: 0.99,
         },
-        candidate_1: {
+        topic_1: {
           choice: "uncertain",
           confidence: 0.99,
           probability: 0.99,
         },
-        candidate_2: {
+        topic_2: {
           choice: "relevant",
           confidence: 0.92,
           probability: 0.92,
         },
-        candidate_3: {
+        topic_3: {
           choice: "irrelevant",
           confidence: 0.4,
           probability: 0.4,
         },
-        candidate_4: {
+        topic_4: {
           choice: "relevant",
           confidence: 0.96,
           probability: 0.96,
@@ -234,14 +243,158 @@ describe("Jev retrieval decisions", () => {
         timeoutMs: 600,
         state: expect.objectContaining({ source: "memory" }),
         questions: expect.objectContaining({
-          candidate_0: expect.anything(),
-          candidate_4: expect.anything(),
+          topic_0: expect.anything(),
+          topic_4: expect.anything(),
         }),
       }),
     );
     expect(mocks.usage).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ operation: "retrieval_ranking" }),
+    );
+  });
+
+  it("excludes topical memories about another person or a superseded current fact", async () => {
+    const answers = Object.fromEntries(
+      items.flatMap((_, index) => [
+        [
+          `topic_${index}`,
+          { choice: "relevant", confidence: 0.95, probability: 0.95 },
+        ],
+        [
+          `subject_${index}`,
+          { choice: "requested_person", confidence: 0.95, probability: 0.95 },
+        ],
+        [
+          `currency_${index}`,
+          { choice: "applicable", confidence: 0.95, probability: 0.95 },
+        ],
+      ]),
+    );
+    answers.subject_0 = {
+      choice: "other_person",
+      confidence: 0.95,
+      probability: 0.95,
+    };
+    answers.currency_1 = {
+      choice: "inapplicable",
+      confidence: 0.95,
+      probability: 0.95,
+    };
+    answers.subject_2 = {
+      choice: "unknown_person",
+      confidence: 0.95,
+      probability: 0.95,
+    };
+    answers.currency_3 = {
+      choice: "inapplicable",
+      confidence: 0.89,
+      probability: 0.89,
+    };
+    mocks.request.mockResolvedValue(result(answers));
+    expect(await rankRetrievedItems(rankingInput())).toEqual([
+      items[4],
+      items[2],
+      items[3],
+    ]);
+    expect(mocks.request).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks document versions separately from topic without personal history claims", async () => {
+    mocks.request.mockResolvedValue(
+      result({
+        topic_0: { choice: "relevant", confidence: 0.99, probability: 0.99 },
+        currency_0: {
+          choice: "inapplicable",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        topic_1: { choice: "uncertain", confidence: 0.99, probability: 0.99 },
+        currency_1: {
+          choice: "uncertain",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        topic_2: { choice: "relevant", confidence: 0.99, probability: 0.99 },
+        currency_2: {
+          choice: "applicable",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+      }),
+    );
+    expect(
+      await rankRetrievedItems({
+        ...rankingInput(),
+        source: "document",
+        items: items.slice(0, 3),
+      }),
+    ).toEqual([items[2], items[1]]);
+    expect(Object.keys(mocks.request.mock.calls[0][0].questions)).toEqual([
+      "topic_0",
+      "currency_0",
+      "topic_1",
+      "currency_1",
+      "topic_2",
+      "currency_2",
+    ]);
+  });
+
+  it("uses explicit stored attribution and preserves unknown, mixed and low-probability scope", async () => {
+    const respondScope = (scope: string, probability = 0.99) => {
+      mocks.request.mockImplementation(async ({ questions }) =>
+        result(
+          Object.fromEntries(
+            Object.keys(questions).map((key) => [
+              key,
+              {
+                choice:
+                  key === "scope"
+                    ? scope
+                    : key.startsWith("subject_")
+                      ? "unknown_person"
+                      : "uncertain",
+                confidence: probability,
+                probability,
+              },
+            ]),
+          ),
+        ),
+      );
+    };
+    const input = {
+      ...rankingInput(),
+      items: items.slice(0, 3),
+      memorySubject: (_: string, index: number) =>
+        (["ACCOUNT_HOLDER", "REFERENCED_PERSON", undefined] as const)[index],
+    };
+    respondScope("referenced");
+    expect(await rankRetrievedItems(input)).toEqual([items[1], items[2]]);
+    expect(
+      mocks.request.mock.calls[0][0].state.candidates.map(
+        (item: { subject?: string }) => item.subject,
+      ),
+    ).toEqual(["ACCOUNT_HOLDER", "REFERENCED_PERSON", undefined]);
+    respondScope("holder");
+    expect(await rankRetrievedItems(input)).toEqual([items[0], items[2]]);
+    for (const [choice, probability] of [
+      ["holder", 0.89],
+      ["multiple", 0.99],
+      ["uncertain", 0.99],
+    ] as const) {
+      respondScope(choice, probability);
+      expect(await rankRetrievedItems(input)).toEqual(input.items);
+    }
+    respondScope("referenced");
+    // Legacy keys, including sister_training, carry no authoritative attribution.
+    expect(
+      await rankRetrievedItems({
+        ...rankingInput(),
+        items: ["sister_training", "person_ada_training"],
+      }),
+    ).toEqual(["sister_training", "person_ada_training"]);
+    expect(mocks.request.mock.lastCall?.[0].questions).not.toHaveProperty(
+      "scope",
     );
   });
 
@@ -256,15 +409,21 @@ describe("Jev retrieval decisions", () => {
     );
     mocks.request.mockResolvedValue(
       result({
-        candidate_0: { choice: "irrelevant", confidence: 1, probability: 0.89 },
-        candidate_1: { choice: "irrelevant", confidence: 1 },
-        candidate_2: { choice: "relevant", confidence: 0.4, probability: 0.82 },
-        candidate_3: {
+        subject_2: {
+          choice: "requested_person",
+          confidence: 1,
+          probability: 1,
+        },
+        currency_2: { choice: "applicable", confidence: 1, probability: 1 },
+        topic_0: { choice: "irrelevant", confidence: 1, probability: 0.89 },
+        topic_1: { choice: "irrelevant", confidence: 1 },
+        topic_2: { choice: "relevant", confidence: 0.4, probability: 0.82 },
+        topic_3: {
           choice: "irrelevant",
           confidence: 0.6,
           probability: 0.95,
         },
-        candidate_4: { choice: "relevant", confidence: 1, probability: 0.79 },
+        topic_4: { choice: "relevant", confidence: 1, probability: 0.79 },
       }),
     );
     expect(await rankRetrievedItems(rankingInput())).toEqual([
@@ -289,6 +448,7 @@ describe("Jev retrieval decisions", () => {
       await rankRetrievedItems({
         ...rankingInput(),
         items: many,
+        memorySubject: () => "REFERENCED_PERSON",
         describe: () => "x".repeat(5_000),
         query: "q".repeat(5_000),
         recentMessages: [
@@ -301,7 +461,7 @@ describe("Jev retrieval decisions", () => {
       }),
     ).toEqual(many);
     const request = mocks.request.mock.calls[0][0];
-    expect(Object.keys(request.questions)).toHaveLength(12);
+    expect(Object.keys(request.questions)).toHaveLength(37);
     expect(request.state.candidates).toHaveLength(12);
     expect(request.state.candidates[0].text).toHaveLength(1_200);
     expect(request.state.query).toHaveLength(2_000);
@@ -324,7 +484,7 @@ describe("Jev retrieval decisions", () => {
     expect(await refineRecallPlan(input)).toBe(input.plan);
     mocks.request.mockResolvedValue(
       result({
-        candidate_0: {
+        topic_0: {
           choice: "irrelevant",
           confidence: 0.99,
           probability: 0.99,

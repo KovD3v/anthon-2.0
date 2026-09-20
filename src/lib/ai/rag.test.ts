@@ -521,15 +521,25 @@ describe("ai/rag", () => {
       durationMs: 10,
       attempted: true,
       answers: {
-        candidate_0: {
+        topic_0: {
           choice: "irrelevant",
           confidence: 0.99,
           probability: 0.99,
         },
-        candidate_1: {
+        topic_1: {
           choice: "relevant",
           confidence: 0.95,
           probability: 0.95,
+        },
+        currency_0: {
+          choice: "applicable",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        currency_1: {
+          choice: "applicable",
+          confidence: 0.99,
+          probability: 0.99,
         },
       },
     });

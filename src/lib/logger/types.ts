@@ -2,6 +2,7 @@ export type LogLevel = "debug" | "info" | "warn" | "error" | "silent";
 
 export type LogDomain =
   | "ai"
+  | "decisions"
   | "voice"
   | "auth"
   | "usage"

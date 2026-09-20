@@ -1,7 +1,11 @@
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
-import { invalidateFactCache, rememberFactInTransaction } from "./memory-facts";
+import {
+  invalidateFactCache,
+  type MemorySubject,
+  rememberFactInTransaction,
+} from "./memory-facts";
 import { isExactStableMemoryKey } from "./memory-target";
 
 const MEMORY_APPROVAL_TTL_MS = 15 * 60 * 1000;
@@ -60,11 +64,17 @@ export type PendingMemoryApproval = PendingApprovalRow;
 
 const approvalFactSchema = z.object({
   content: z.string().trim().min(1),
+  _subject: z
+    .enum(["ACCOUNT_HOLDER", "REFERENCED_PERSON"])
+    .optional()
+    .catch(undefined),
   observedAt: z.iso.datetime().optional(),
   expiresAt: z.iso.datetime().nullable().optional(),
 });
 
-function approvalFact(value: unknown) {
+function approvalFact(
+  value: unknown,
+): z.infer<typeof approvalFactSchema> | null {
   // Requests already presented before expiry support retain their string format.
   if (typeof value === "string") return { content: value };
   const result = approvalFactSchema.safeParse(value);
@@ -112,12 +122,14 @@ export async function createMemoryApproval(input: {
   sourceInboundMessageId: string;
   key: string;
   value: unknown;
+  subject?: MemorySubject;
   category: string;
   confidence: number;
   observedAt?: Date;
   memoryExpiresAt?: Date | null;
 }): Promise<PendingMemoryApproval> {
   assertApprovalInput(input);
+  const subject = approvalFactSchema.shape._subject.parse(input.subject);
   const now = new Date();
   if (
     input.memoryExpiresAt &&
@@ -127,9 +139,10 @@ export async function createMemoryApproval(input: {
     throw new Error("Cannot request approval for an expired fact");
   }
   const value = toInputJsonValue(
-    input.memoryExpiresAt !== undefined || input.observedAt
+    input.memoryExpiresAt !== undefined || input.observedAt || subject
       ? {
           content: input.value,
+          ...(subject ? { _subject: subject } : {}),
           observedAt: input.observedAt?.toISOString(),
           ...(input.memoryExpiresAt !== undefined
             ? { expiresAt: input.memoryExpiresAt?.toISOString() ?? null }
@@ -608,6 +621,7 @@ export async function resolveMemoryApproval(input: {
       userId: input.userId,
       key: approval.key,
       value: fact.content,
+      ...(fact._subject ? { subject: fact._subject } : {}),
       category: approval.category,
       confidence: approval.confidence,
       sensitivity: "HIGH",

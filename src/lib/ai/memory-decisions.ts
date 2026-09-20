@@ -17,7 +17,7 @@ import { scheduleTypedDecisionUsage } from "./usage-meter";
 
 export { deterministicMemoryGate } from "./memory-candidate-gate-policy";
 
-const logger = createLogger("ai");
+const logger = createLogger("decisions");
 
 export async function shouldExtractMemory(input: {
   userId: string;
@@ -145,8 +145,16 @@ export async function reviewMemoryCandidates(input: {
       requiresApproval: false,
     }));
   if (mode === "off" || !input.candidates.length) return unchanged();
-  if (input.candidates.length > 8 || input.userText.length > 12_000)
+  if (input.candidates.length > 8 || input.userText.length > 12_000) {
+    logger.info("ai.memory.review", "Memory review input exceeds bounds", {
+      mode,
+      applied: mode === "active",
+      attempted: false,
+      candidateCount: input.candidates.length,
+      failureCode: "input_too_large",
+    });
     return unreviewed();
+  }
 
   const facts = input.existingFacts
     .slice(0, MEMORY_REVIEW_FACT_LIMIT)
@@ -245,6 +253,9 @@ export async function reviewMemoryCandidates(input: {
   if (!decision.ok) {
     logger.info("ai.memory.review", "Memory review unavailable", {
       mode,
+      applied: mode === "active",
+      attempted: decision.attempted,
+      modelId: decision.modelId,
       candidateCount: input.candidates.length,
       durationMs: decision.durationMs,
       failureCode: decision.failureCode,
@@ -319,6 +330,9 @@ export async function reviewMemoryCandidates(input: {
   });
   logger.info("ai.memory.review", "Memory review decisions", {
     mode,
+    applied: mode === "active",
+    attempted: decision.attempted,
+    modelId: decision.modelId,
     candidateCount: input.candidates.length,
     rejectCount: reviews.filter((review) => review.reject).length,
     equivalentCount: reviews.filter(

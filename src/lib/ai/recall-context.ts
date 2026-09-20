@@ -127,6 +127,7 @@ export async function buildRecallContext(
         ),
         describe: (fact) =>
           `[${fact.category}] ${fact.key}: ${fact.content}${formatMemoryValidity(fact)}`,
+        memorySubject: (fact) => fact.subject,
       })
     : [];
   // A temporary fact can expire while the network decision is in flight.

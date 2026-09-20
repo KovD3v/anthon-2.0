@@ -213,6 +213,80 @@ describe("ai/memory-approval", () => {
     });
   });
 
+  it.each(["ACCOUNT_HOLDER", "REFERENCED_PERSON"] as const)(
+    "preserves explicit %s attribution through pending approval and confirmation",
+    async (subject) => {
+      mocks.messageFindFirst.mockResolvedValueOnce({ id: sourceMessage.id });
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce(null);
+      mocks.memoryApprovalCreate.mockImplementation(async ({ data }) => ({
+        id: pendingApproval.id,
+        ...data,
+      }));
+      const pending = await createMemoryApproval({
+        userId: "user-1",
+        sourceInboundMessageId: sourceMessage.id,
+        key: pendingApproval.key,
+        value: pendingApproval.value,
+        subject,
+        category: pendingApproval.category,
+        confidence: pendingApproval.confidence,
+      });
+      const stored = mocks.memoryApprovalCreate.mock.calls[0][0].data.value;
+      expect(stored).toEqual({
+        content: pendingApproval.value,
+        _subject: subject,
+      });
+      expect(pending.value).toBe(pendingApproval.value);
+
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+        ...pendingApproval,
+        value: stored,
+      });
+      mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+      mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
+      expect(
+        await resolveMemoryApproval({
+          userId: "user-1",
+          approvalId: pendingApproval.id,
+          decision: "approve",
+          currentUserMessageId: currentMessage.id,
+        }),
+      ).toEqual({ status: "approved", memoryId: "memory-1" });
+      expect(mocks.rememberFactInTransaction).toHaveBeenCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          subject,
+          value: pendingApproval.value,
+          origin: "CONFIRMED",
+        }),
+      );
+    },
+  );
+
+  it.each([undefined, "account_holder", "UNKNOWN", null])(
+    "keeps missing or invalid approval attribution unknown: %s",
+    async (subject) => {
+      mocks.memoryApprovalFindFirst.mockResolvedValueOnce({
+        ...pendingApproval,
+        key: "person_ada_injury",
+        value: { content: pendingApproval.value, _subject: subject },
+      });
+      mocks.messageFindFirst.mockResolvedValueOnce(currentMessage);
+      mocks.messageFindMany.mockResolvedValueOnce([sourceMessage]);
+      expect(
+        await resolveMemoryApproval({
+          userId: "user-1",
+          approvalId: pendingApproval.id,
+          decision: "approve",
+          currentUserMessageId: currentMessage.id,
+        }),
+      ).toEqual({ status: "approved", memoryId: "memory-1" });
+      expect(
+        mocks.rememberFactInTransaction.mock.calls[0][1],
+      ).not.toHaveProperty("subject");
+    },
+  );
+
   it("links an approval to an owned inbound and its persisted assistant response", async () => {
     mocks.messageFindFirst
       .mockResolvedValueOnce({

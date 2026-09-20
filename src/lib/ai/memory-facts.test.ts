@@ -150,6 +150,38 @@ describe("durable fact recall", () => {
     });
   });
 
+  it.each([
+    ["ACCOUNT_HOLDER", "ACCOUNT_HOLDER"],
+    ["REFERENCED_PERSON", "REFERENCED_PERSON"],
+    [undefined, undefined],
+    ["account_holder", undefined],
+    ["UNKNOWN", undefined],
+    [null, undefined],
+  ])(
+    "projects only valid stored subject metadata: %s",
+    async (stored, expected) => {
+      const memory = {
+        ...buildFact({ key: "person_ada_training" }),
+        value: { content: "Ada si allena martedì", _subject: stored },
+      };
+      mocks.memoryFindMany.mockResolvedValue([memory]);
+      mocks.memoryFindFirst.mockResolvedValue(memory);
+      const recalled = await recallFacts({ userId: "user-1", query: "Ada" });
+      const direct = await getActiveFactById({
+        userId: "user-1",
+        factId: memory.id,
+      });
+      expect(recalled.degraded).toBe(false);
+      for (const fact of [recalled.facts[0], direct]) {
+        expect(fact?.subject).toBe(expected);
+        expect(Object.hasOwn(fact ?? {}, "subject")).toBe(
+          expected !== undefined,
+        );
+        expect(fact).not.toHaveProperty("_subject");
+      }
+    },
+  );
+
   it("stops recall and listing exactly at expiry even with a warm snapshot", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
@@ -349,7 +381,7 @@ describe("durable fact recall", () => {
   it("revises only an exact active fact owned by the user", async () => {
     mocks.memoryFindFirst.mockResolvedValue({
       ...buildFact(),
-      value: { content: "Martedì sera" },
+      value: { content: "Martedì sera", _subject: "ACCOUNT_HOLDER" },
     });
     mocks.memoryUpdate.mockResolvedValue({ id: "memory-1" });
     mocks.revisionCreate.mockResolvedValue({ id: "revision-1" });
@@ -375,6 +407,7 @@ describe("durable fact recall", () => {
       data: expect.objectContaining({
         previousValue: expect.objectContaining({
           content: "Martedì sera",
+          _subject: "ACCOUNT_HOLDER",
           _undoState: expect.objectContaining({
             status: "ACTIVE",
             sensitivity: "LOW",
@@ -384,6 +417,9 @@ describe("durable fact recall", () => {
         reason: "revise",
       }),
     });
+    expect(mocks.memoryUpdate.mock.calls[0][0].data.value).not.toHaveProperty(
+      "_subject",
+    );
   });
 
   it.each([null, new Date("2099-10-24T18:00:00Z")])(

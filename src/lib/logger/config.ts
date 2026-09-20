@@ -19,6 +19,7 @@ const VALID_LEVELS = new Set<LogLevel>([
 const VALID_OUTPUT_FORMATS = new Set<LogOutputFormat>(["json", "pretty"]);
 const VALID_DOMAINS = new Set<LogDomain>([
   "ai",
+  "decisions",
   "voice",
   "auth",
   "usage",
@@ -30,6 +31,7 @@ const VALID_DOMAINS = new Set<LogDomain>([
 ]);
 const QUIET_DEVELOPMENT_DOMAINS = new Set<LogDomain>([
   "ai",
+  "decisions",
   "voice",
   "usage",
   "latency",
