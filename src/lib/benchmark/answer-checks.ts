@@ -44,7 +44,7 @@ export const ANSWER_CHECK_QUESTIONS: Record<
   TypedDecisionQuestion
 > = {
   repeated_question: {
-    instructions: `${sharedInstructions} Check whether the answer asks again for information already clearly supplied by the user or personalContext and still applicable. A useful clarification, changed circumstances or a new follow-up is not repetition.`,
+    instructions: `${sharedInstructions} Identify each request for information addressed to the user, including imperatives without a question mark. Check every request independently against the supplied user evidence and personalContext. If even one needlessly asks for an already clear, still applicable answer, flag the whole answer; other new questions do not cancel that repetition. Asking for a new value after the user says the old information has changed is valid clarification, not repetition. A useful clarification or a new follow-up is also not repetition.`,
     criteria: {
       flagged:
         "At least one question needlessly requests an already clear, still applicable answer.",
@@ -69,7 +69,7 @@ export const ANSWER_CHECK_QUESTIONS: Record<
     },
   },
   unsupported_personal_fact: {
-    instructions: `${sharedInstructions} Classify the evidence for factual personal assertions in candidateAnswer about a specific person's identity, preferences, relationships, history, experiences or outcomes. Questions, conditional advice, hypothetical examples and material explicitly quoted or translated as content are not personal assertions. Quoted text is not evidence about the actual account holder. If there are no personal assertions, choose not_applicable. Otherwise choose contradicted only for an assertion incompatible with positive supplied user evidence, including wrong-person attribution; absence alone is never contradiction. If any remaining assertion lacks supplied support, choose absent even when context is incomplete. If all assertions are supported, choose supported. Report the evidence relation only; code handles missing-context uncertainty.`,
+    instructions: `${sharedInstructions} Classify the evidence for factual personal assertions in candidateAnswer about a specific person's identity, preferences, relationships, history, experiences or outcomes. Questions, conditional advice, hypothetical examples and material explicitly quoted or translated as content are not personal assertions. The candidate answer itself must preserve quotation or translation framing: an unframed second-person claim addressed to the account holder is a personal assertion even when the user requested a translation of fictional material. Quoted text is not evidence about the actual account holder. If there are no personal assertions, choose not_applicable. Otherwise choose contradicted only for an assertion incompatible with positive supplied user evidence, including wrong-person attribution; absence alone is never contradiction. If any remaining assertion lacks supplied support, choose absent even when context is incomplete. If all assertions are supported, choose supported. Report the evidence relation only; code handles missing-context uncertainty.`,
     criteria: {
       contradicted:
         "At least one personal assertion conflicts with positive supplied evidence about that person.",

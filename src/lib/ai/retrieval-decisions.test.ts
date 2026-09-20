@@ -135,6 +135,36 @@ describe("Jev retrieval decisions", () => {
     expect(mocks.request).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "The cue you suggested feels too complicated during my performance.",
+    "La sequenza che avevi consigliato aumenta la confusione.",
+  ])(
+    "checks a past-advice reference without a demonstrative: %s",
+    async (message) => {
+      const input = {
+        ...recallInput(),
+        message,
+        plan: planRecall({ message, decision: active, isGuest: false }),
+      };
+      expect(input.plan.conversations.enabled).toBe(false);
+      expect((await refineRecallPlan(input)).conversations).toMatchObject({
+        enabled: true,
+        allowCrossChannel: false,
+      });
+      mocks.request.mockResolvedValue(
+        result({
+          recall: {
+            choice: "self_contained",
+            confidence: 0.99,
+            probability: 0.99,
+          },
+        }),
+      );
+      expect(await refineRecallPlan(input)).toBe(input.plan);
+      expect(mocks.request).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it("requires recent textual evidence and skips self-contained requests", async () => {
     await refineRecallPlan({ ...recallInput(), recentMessages: [] });
     await refineRecallPlan({

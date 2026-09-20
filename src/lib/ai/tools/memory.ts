@@ -230,6 +230,7 @@ validi e ordinati dal server; non chiedere tutte le memorie se bastano pochi fat
 
   const rememberFact = tool({
     description: `Salva o sovrascrive in modo silenzioso un singolo fatto utile al coaching.
+Se l'utente vieta di memorizzare quel fatto, non salvarlo e non proporne la conferma.
 Eventi futuri, scadenze e piani temporanei richiedono expiry; per fatti durevoli usa null.
 Non salvare chiacchiere o stati momentanei. Se la data è ambigua, chiedi o evita il salvataggio.
 Puoi inferire con prudenza fatti ordinari a basso rischio; non dire mai all'utente

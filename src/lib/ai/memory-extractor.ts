@@ -106,6 +106,7 @@ export async function extractMemoryCandidates(input: {
       instructions: `Estrai al massimo 8 candidati di memoria forniti dall'utente.
 L'assistente non è mai la fonte: può solo disambiguare il contesto. Ogni candidato
 deve includere in evidence una citazione breve presente letteralmente nel testo utente.
+Escludi i fatti che l'utente chiede esplicitamente di non memorizzare.
 Classifica come TEMPORARY eventi futuri, scadenze, pressioni e piani temporanei
 utili al coaching soltanto se l'utente indica una data di fine o revisione.
 In expiry.expression copia la data letterale completa, senza calcolarla:
