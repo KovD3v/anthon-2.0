@@ -312,7 +312,10 @@ export type AnswerCheckJudgment = {
   status: AnswerCheckStatus;
   choice: AnswerCheckChoice | null;
   confidence: number | null;
+  /** Selected evidence-label probability, retained for report compatibility. */
   probability: number | null;
+  /** Total probability of evidence labels mapped to the reported choice. */
+  decisionProbability: number | null;
   evidenceChoice?: PersonalFactEvidenceChoice;
 };
 export type AnswerCheckResult = Pick<
@@ -358,6 +361,9 @@ export type AnswerCheckReport = {
 const judgmentSchema = z.object({
   confidence: z.number().finite().min(0).max(1),
   probability: z.number().finite().min(0).max(1).optional(),
+  probabilities: z
+    .record(z.string(), z.number().finite().min(0).max(1))
+    .optional(),
 });
 type DecisionRequester = (
   input: TypedDecisionsInput,
@@ -443,26 +449,53 @@ export async function evaluateAnswerChecks(
           choice: null,
           confidence: null,
           probability: null,
+          decisionProbability: null,
         };
         if (!failureCode && answer?.success) {
           const raw = answer.data;
-          const choice: AnswerCheckChoice =
-            raw.choice === "contradicted"
+          const normalize = (value: typeof raw.choice): AnswerCheckChoice =>
+            value === "contradicted"
               ? "flagged"
-              : raw.choice === "absent"
+              : value === "absent"
                 ? turn.personalContextComplete && turn.historyComplete
                   ? "flagged"
                   : "uncertain"
-                : raw.choice === "supported"
+                : value === "supported"
                   ? "clear"
-                  : raw.choice;
+                  : value;
+          const choice = normalize(raw.choice);
+          const labels = Object.keys(ANSWER_CHECK_QUESTIONS[id].criteria);
+          const distribution = raw.probabilities;
+          // Several evidence labels can describe the same final defect. Missing
+          // context still maps absence to uncertainty, never to a contradiction.
+          const decisionProbability =
+            raw.probability === undefined
+              ? null
+              : distribution &&
+                  labels.every((label) => distribution[label] !== undefined)
+                ? Math.min(
+                    1,
+                    Number(
+                      labels
+                        .reduce(
+                          (total, label) =>
+                            normalize(label as typeof raw.choice) === choice
+                              ? total + distribution[label]
+                              : total,
+                          0,
+                        )
+                        .toFixed(12),
+                    ),
+                  )
+                : raw.probability;
           judgment = {
             choice,
             confidence: raw.confidence,
             probability: raw.probability ?? null,
+            decisionProbability,
             status:
-              raw.probability === undefined ||
-              raw.probability < ANSWER_CHECK_MIN_PROBABILITY ||
+              decisionProbability === null ||
+              decisionProbability < ANSWER_CHECK_MIN_PROBABILITY ||
               (id === "repeated_question" &&
                 raw.choice === "clear" &&
                 !turn.historyComplete)

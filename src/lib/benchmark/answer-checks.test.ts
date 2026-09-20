@@ -162,6 +162,7 @@ describe("offline answer checks", () => {
       choice: "not_applicable",
       confidence: 0.6,
       probability: 0.6,
+      decisionProbability: 0.6,
     });
     expect(report.summary.checks.repeated_question).toMatchObject({
       decidedApplicable: 0,
@@ -206,6 +207,13 @@ describe("offline answer checks", () => {
     if (!response.ok) throw new Error("Test setup");
     for (const answer of Object.values(response.answers))
       delete answer.probability;
+    response.answers.unsupported_personal_fact.probabilities = {
+      contradicted: 0.01,
+      absent: 0.01,
+      supported: 0.95,
+      not_applicable: 0.02,
+      uncertain: 0.01,
+    };
     const report = await evaluateAnswerChecks([turn], {
       request: async () => response,
     });
@@ -213,6 +221,11 @@ describe("offline answer checks", () => {
       status: "uncertain",
       confidence: 0.95,
       probability: null,
+    });
+    expect(report.results[0].checks.unsupported_personal_fact).toMatchObject({
+      status: "uncertain",
+      probability: null,
+      decisionProbability: null,
     });
     expect(report.summary).toMatchObject({
       uncertainTurns: 1,
@@ -277,6 +290,59 @@ describe("offline answer checks", () => {
       { choice: "clear", status: "uncertain", probability: 0.95 },
       { choice: "flagged", status: "flagged", probability: 0.95 },
       { choice: "not_applicable", status: "not_applicable", probability: 0.95 },
+    ]);
+  });
+
+  it("sums evidence labels only when they map to the same final judgment", async () => {
+    const split = success();
+    const boundary = success();
+    if (!split.ok || !boundary.ok) throw new Error("Test setup");
+    split.answers.unsupported_personal_fact = {
+      choice: "contradicted",
+      confidence: 0.53,
+      probability: 0.62,
+      probabilities: {
+        contradicted: 0.62,
+        absent: 0.19,
+        supported: 0.16,
+        not_applicable: 0.02,
+        uncertain: 0.01,
+      },
+    };
+    boundary.answers.unsupported_personal_fact = {
+      choice: "absent",
+      confidence: 0.6,
+      probability: 0.7,
+      probabilities: {
+        contradicted: 0.1,
+        absent: 0.7,
+        supported: 0.1,
+        not_applicable: 0.05,
+        uncertain: 0.05,
+      },
+    };
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(split)
+      .mockResolvedValueOnce(split)
+      .mockResolvedValueOnce(boundary)
+      .mockResolvedValueOnce(boundary);
+    const report = await evaluateAnswerChecks(
+      [
+        turn,
+        { ...turn, personalContextComplete: false },
+        turn,
+        { ...turn, historyComplete: false },
+      ],
+      { request },
+    );
+    expect(
+      report.results.map((result) => result.checks.unsupported_personal_fact),
+    ).toMatchObject([
+      { status: "flagged", probability: 0.62, decisionProbability: 0.81 },
+      { status: "uncertain", probability: 0.62, decisionProbability: 0.62 },
+      { status: "flagged", probability: 0.7, decisionProbability: 0.8 },
+      { status: "uncertain", probability: 0.7, decisionProbability: 0.75 },
     ]);
   });
 
