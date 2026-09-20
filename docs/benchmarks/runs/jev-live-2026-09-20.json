@@ -38,6 +38,18 @@
       "p50": 361,
       "p95": 627
     },
+    "answerLabelTotals": {
+      "total": 92,
+      "definiteMatches": 66,
+      "definiteDisagreements": 5,
+      "uncertain": 21,
+      "failed": 0,
+      "rawMatches": 80,
+      "rawDisagreements": 12,
+      "correctRawChoicesBelowThreshold": 14,
+      "mismatchedRawChoicesBelowThreshold": 7,
+      "explicitUncertainChoices": 0
+    },
     "answerLabelCounts": {
       "repeated_question": {
         "labeled": 23,
