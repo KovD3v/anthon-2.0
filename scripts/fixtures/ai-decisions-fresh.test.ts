@@ -38,17 +38,25 @@ vi.mock("@/lib/ai/typed-decisions", async (original) => ({
   requestTypedDecisions: mocks.request,
 }));
 
-const corpus: DecisionFixtures = JSON.parse(
-  readFileSync(
-    new URL("./ai-decisions-fresh-2026-09-20.json", import.meta.url),
-    "utf8",
-  ),
-  (key, value) =>
-    ["observedAt", "updatedAt", "expiresAt"].includes(key) &&
-    typeof value === "string"
-      ? new Date(value)
-      : value,
-);
+const corpora = [
+  { name: "fresh", counts: [16, 24, 12, 6, 32] },
+  { name: "ready", counts: [8, 12, 16, 12, 32] },
+  { name: "followup", counts: [0, 0, 8, 8, 16] },
+  { name: "documents", counts: [0, 0, 0, 8, 0] },
+].map(({ name, counts }) => ({
+  ...(JSON.parse(
+    readFileSync(
+      new URL(`./ai-decisions-${name}-2026-09-20.json`, import.meta.url),
+      "utf8",
+    ),
+    (key, value) =>
+      ["observedAt", "updatedAt", "expiresAt"].includes(key) &&
+      typeof value === "string"
+        ? new Date(value)
+        : value,
+  ) as DecisionFixtures),
+  counts,
+}));
 const response = (choices: Record<string, string>) => ({
   ok: true,
   modelId: "mock",
@@ -64,7 +72,7 @@ const response = (choices: Record<string, string>) => ({
 
 // These are parser, routing and fixture-integrity checks. They do not measure
 // model quality; evaluate-ai-decisions.ts performs the separate paid live run.
-describe("fresh synthetic decision fixtures", () => {
+describe.each(corpora)("synthetic decision fixtures: $split", (corpus) => {
   beforeEach(() => {
     vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "synthetic-jev-live-eval");
     vi.stubEnv("AI_RETRIEVAL_DECISIONS_MODE", "active");
@@ -77,14 +85,15 @@ describe("fresh synthetic decision fixtures", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps 66 distinct cases and balanced answer pairs", () => {
-    expect(corpus.memoryCases).toHaveLength(16);
+  it("keeps distinct cases and balanced answer pairs", () => {
+    const [memory, candidates, planning, ranking, answers] = corpus.counts;
+    expect(corpus.memoryCases).toHaveLength(memory);
     expect(corpus.memoryCases.flatMap((item) => item.expected)).toHaveLength(
-      24,
+      candidates,
     );
-    expect(corpus.planningCases).toHaveLength(12);
-    expect(corpus.rankingCases).toHaveLength(6);
-    expect(corpus.answerFixtures).toHaveLength(32);
+    expect(corpus.planningCases).toHaveLength(planning);
+    expect(corpus.rankingCases).toHaveLength(ranking);
+    expect(corpus.answerFixtures).toHaveLength(answers);
     const ids = [
       ...corpus.memoryCases,
       ...corpus.planningCases,
@@ -92,12 +101,12 @@ describe("fresh synthetic decision fixtures", () => {
     ]
       .map((item) => item.id)
       .concat(corpus.answerFixtures.map((item) => item.turn.scenarioId));
-    expect(new Set(ids).size).toBe(66);
+    expect(new Set(ids).size).toBe(memory + planning + ranking + answers);
     const pairs = Map.groupBy(
       corpus.answerFixtures,
       (fixture) => fixture.pairId,
     );
-    expect(pairs.size).toBe(16);
+    expect(pairs.size).toBe(answers / 2);
     for (const pair of pairs.values()) {
       expect(pair).toHaveLength(2);
       expect(pair[0].targetCheck).toBe(pair[1].targetCheck);
@@ -193,10 +202,29 @@ describe("fresh synthetic decision fixtures", () => {
       expect(Object.keys(expected.rawChoices)).toEqual(
         input.items.map((_, index) => `candidate_${index}`),
       );
-      mocks.request.mockResolvedValue(response(expected.rawChoices));
+      // Inject a complete contract result, not model predictions. The original
+      // holistic labels stay frozen; live atomic judgments are scored separately.
+      mocks.request.mockResolvedValue(
+        response(
+          Object.fromEntries([
+            ["scope", "uncertain"],
+            ...Object.values(expected.rawChoices).flatMap((choice, index) => [
+              [`topic_${index}`, choice],
+              [`currency_${index}`, "applicable"],
+              ...(input.source === "memory"
+                ? [[`subject_${index}`, "requested_person"]]
+                : []),
+            ]),
+          ]),
+        ),
+      );
       expect(
         (
-          await rankRetrievedItems({ ...input, describe: (item) => item.text })
+          await rankRetrievedItems({
+            ...input,
+            describe: (item) => item.text,
+            memorySubject: (item) => item.subject,
+          })
         ).map((item) => item.id),
       ).toEqual(expected.retainedIds);
       const state = mocks.request.mock.calls[0][0].state;

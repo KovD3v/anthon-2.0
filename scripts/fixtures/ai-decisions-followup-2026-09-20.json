@@ -1,0 +1,1800 @@
+{
+  "split": "independent-readiness-followup",
+  "authoredForCommit": "52bc54a93f8813553de6a3168398115bc3d941ba",
+  "createdAt": "2026-09-20T20:02:37.816083+00:00",
+  "syntheticOnly": true,
+  "memoryCases": [],
+  "planningCases": [
+    {
+      "id": "followup-plan-01",
+      "language": "en",
+      "pairId": "followup-plan-pair-01",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Which step of the green-tab rule you suggested should I use when I lose my place in the printmaking demo?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "During the printmaking demo, I sometimes lose my place in the sequence."
+          },
+          {
+            "role": "assistant",
+            "content": "Losing your place is the specific moment we need to prepare for."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The name green-tab rule does not itself identify its steps, and the user asks about the particular rule attributed to the assistant. The referenced recommendation is not present in the recent window."
+    },
+    {
+      "id": "followup-plan-02",
+      "language": "en",
+      "pairId": "followup-plan-pair-01",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Which step of the green-tab rule you suggested should I use when I lose my place in the printmaking demo?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "During the printmaking demo, I sometimes lose my place in the sequence."
+          },
+          {
+            "role": "assistant",
+            "content": "The green-tab rule has two steps: touch the green tab to locate the current stage, then read the next action printed below it."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The name green-tab rule does not itself identify its steps, and the user asks about the particular rule attributed to the assistant. The referenced recommendation is explicit in the recent window."
+    },
+    {
+      "id": "followup-plan-03",
+      "language": "it",
+      "pairId": "followup-plan-pair-02",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Quale delle due domande che avevi proposto serve a verificare l'accordo sul compito?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Io e un’altra persona dobbiamo coordinare la consegna di un file e la verifica dei dati."
+          },
+          {
+            "role": "assistant",
+            "content": "Consegna del file e verifica dei dati sono due responsabilità da chiarire."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The task asks to distinguish the purpose of two particular suggested questions, not to invent new questions. The referenced recommendation is not present in the recent window."
+    },
+    {
+      "id": "followup-plan-04",
+      "language": "it",
+      "pairId": "followup-plan-pair-02",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Quale delle due domande che avevi proposto serve a verificare l'accordo sul compito?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Io e un’altra persona dobbiamo coordinare la consegna di un file e la verifica dei dati."
+          },
+          {
+            "role": "assistant",
+            "content": "Ti propongo due domande: \"Quale risultato vogliamo ottenere?\" per chiarire lo scopo; \"Ci confermiamo che tu invii il file e io verifichi i dati?\" per verificare l’accordo sul compito."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The task asks to distinguish the purpose of two particular suggested questions, not to invent new questions. The referenced recommendation is explicit in the recent window."
+    },
+    {
+      "id": "followup-plan-05",
+      "language": "en",
+      "pairId": "followup-plan-pair-03",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Can you turn your suggestion for handling a late interruption into one sentence I can say to the facilitator?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "At the end of my update, someone sometimes interrupts while I am making the final point."
+          },
+          {
+            "role": "assistant",
+            "content": "The interruption during your final point is the moment you want to handle."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The user requests a transformation of a particular suggestion. The event description alone does not supply that suggestion. The referenced recommendation is not present in the recent window."
+    },
+    {
+      "id": "followup-plan-06",
+      "language": "en",
+      "pairId": "followup-plan-pair-03",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Can you turn your suggestion for handling a late interruption into one sentence I can say to the facilitator?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "At the end of my update, someone sometimes interrupts while I am making the final point."
+          },
+          {
+            "role": "assistant",
+            "content": "Acknowledge the interruption briefly, ask to finish the final point, and offer to take the question immediately after it."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The user requests a transformation of a particular suggestion. The event description alone does not supply that suggestion. The referenced recommendation is explicit in the recent window."
+    },
+    {
+      "id": "followup-plan-07",
+      "language": "it",
+      "pairId": "followup-plan-pair-04",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Tra quei due criteri per scegliere il pezzo da leggere, quale dà più peso al pubblico?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Devo scegliere un pezzo da leggere a un incontro dove molte persone non conoscono l’autore."
+          },
+          {
+            "role": "assistant",
+            "content": "Il pubblico dell’incontro non conosce necessariamente l’autore."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The question compares a referenced pair of criteria. The audience description does not establish which two criteria were proposed. The referenced recommendation is not present in the recent window."
+    },
+    {
+      "id": "followup-plan-08",
+      "language": "it",
+      "pairId": "followup-plan-pair-04",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_independent_followup"
+        },
+        "message": "Tra quei due criteri per scegliere il pezzo da leggere, quale dà più peso al pubblico?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Devo scegliere un pezzo da leggere a un incontro dove molte persone non conoscono l’autore."
+          },
+          {
+            "role": "assistant",
+            "content": "Puoi confrontare due criteri: la tua familiarità con il pezzo, oppure quanto il pezzo è chiaro per chi non conosce l’autore."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "semanticRouteRequired": true,
+      "rationale": "The question compares a referenced pair of criteria. The audience description does not establish which two criteria were proposed. The referenced recommendation is explicit in the recent window."
+    }
+  ],
+  "rankingCases": [
+    {
+      "id": "followup-rank-01",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "What opening habit has she described?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r01-1",
+            "text": "Farid (uncle): opens a repair workshop by demonstrating how to check the equipment.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r01-2",
+            "text": "Account holder: opens their own science-cafe talks by thanking the host.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r01-3",
+            "text": "Farah (aunt): opens a science-cafe talk by naming one question for the audience to hold in mind.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r01-4",
+            "text": "Farah (aunt), science-cafe opening fragment: \"Another habit I use at the start is ...\" [action missing from this excerpt].",
+            "subject": "REFERENCED_PERSON"
+          }
+        ],
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "My aunt Farah has a science-cafe talk and my uncle Farid has a repair workshop."
+          },
+          {
+            "role": "assistant",
+            "content": "Shall we start with Farid’s workshop?"
+          },
+          {
+            "role": "user",
+            "content": "Start with the first person I mentioned, please."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r01-3", "followup-r01-4"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "uncertain"
+        }
+      },
+      "rationale": "The latest user selects the first person they mentioned, Farah, overriding the assistant’s proposed focus on Farid. The account holder is a third, different subject. The partial Farah record may contain another opening habit.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_3",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The correct subject and event are explicit, but the action is missing. Relevant is acceptable as a coarse label; retaining the item is required."
+        }
+      ]
+    },
+    {
+      "id": "followup-rank-02",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Quale strategia ho scelto per la pausa se cerco una parola?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r02-1",
+            "text": "Account holder, colloquio, frammento: \"Per la pausa quando cerco una parola, la mia strategia è ...\" [completamento non disponibile].",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r02-2",
+            "text": "Elis (amica): al provino riempie la pausa con un breve gesto della mano.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r02-3",
+            "text": "Account holder: al colloquio ha scelto di fermarsi un istante e poi riformulare la frase.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r02-4",
+            "text": "Consiglio generale riportato in conversazione: alcune persone riempiono ogni pausa con una battuta. Non è una scelta dichiarata dall’account holder."
+          }
+        ],
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Domani Elis ha un provino; io ho un colloquio per il progetto."
+          },
+          {
+            "role": "assistant",
+            "content": "Partiamo dal provino di Elis."
+          },
+          {
+            "role": "user",
+            "content": "No, occupiamoci prima del mio colloquio."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r02-3", "followup-r02-1"],
+        "rawChoices": {
+          "candidate_0": "uncertain",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The user rejects the assistant’s suggestion to discuss Elis and selects their own interview. The chosen personal strategy must not be replaced with Elis’s behavior or a generic suggestion.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_0",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "This is explicitly the account holder’s interview strategy, but the strategy text is cut off. A coarse relevant label is acceptable; the record must remain available."
+        }
+      ]
+    },
+    {
+      "id": "followup-rank-03",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Compare how I and my cousin Noam handle the first wrong answer in quiz practice.",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r03-1",
+            "text": "Account holder: after the first wrong answer in quiz practice, reads the explanation and writes one correction.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r03-2",
+            "text": "Noam (cousin): after a missed badminton shot, adjusts the racket grip.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r03-3",
+            "text": "Noam (cousin): after the first wrong answer in quiz practice, says the correct answer aloud and moves on.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r03-4",
+            "text": "Elin (cousin): after a wrong answer in quiz practice, asks the host for a hint.",
+            "subject": "REFERENCED_PERSON"
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r03-1", "followup-r03-3"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The request jointly targets the account holder and Noam in quiz practice. Noam’s badminton record is the right person but the wrong context; Elin is a different cousin.",
+      "ambiguity": []
+    },
+    {
+      "id": "followup-rank-04",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Confronta il modo di preparare una telefonata difficile di Luca, il mio collega, e Luca, mio fratello.",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r04-1",
+            "text": "Luca (collega): prima di una telefonata difficile scrive il risultato che vuole ottenere.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r04-2",
+            "text": "Miriam (amica): prima di una telefonata difficile controlla la batteria del telefono.",
+            "subject": "REFERENCED_PERSON"
+          },
+          {
+            "id": "followup-r04-3",
+            "text": "Luca, relazione non disponibile nell’estratto: prima di una telefonata difficile rilegge un appunto. Non è possibile distinguere qui quale dei due Luca sia."
+          },
+          {
+            "id": "followup-r04-4",
+            "text": "Luca (fratello): prima di una telefonata difficile prova ad alta voce la prima frase.",
+            "subject": "REFERENCED_PERSON"
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r04-1", "followup-r04-4", "followup-r04-3"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "uncertain",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "The two people share a first name but have distinct relationships. Both fully attributed records are needed. The unattributed Luca record may concern either target and must not be silently assigned or dropped.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_2",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "Either Luca named in the query could be the subject. Relevant is acceptable for coarse relevance, but person attribution remains unresolved and retention is required."
+        }
+      ]
+    },
+    {
+      "id": "followup-rank-05",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "For a retrospective, which start-of-shift reminder was in force for me on 10 February 2027?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r05-1",
+            "text": "Account holder: \"Check the roster\" became the start-of-shift reminder on 1 March 2027 and replaced the February reminder.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r05-2",
+            "text": "ARCHIVED NOW. Account holder: \"Read the handover note\" was the valid start-of-shift reminder from 1 February through 28 February 2027.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r05-3",
+            "text": "Account holder: \"Count the supplies\" was valid only from 15 January through 31 January 2027.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r05-4",
+            "text": "Nell (coworker): \"Ask the supervisor\" was Nell’s reminder throughout February 2027.",
+            "subject": "REFERENCED_PERSON"
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r05-2"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "Historical validity, not present archive status, controls this question. Only the account holder’s February interval includes the requested day.",
+      "ambiguity": []
+    },
+    {
+      "id": "followup-rank-06",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Nel mio piano valido al 6 maggio 2028, quale strategia devo usare prima di verificare gli ordini del laboratorio?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "followup-r06-1",
+            "text": "Account holder: strategia valida soltanto dal 1 al 30 aprile 2028, iniziare dalla pila più recente. Sostituita dal piano di maggio.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r06-2",
+            "text": "Account holder, verifica ordini: \"Dal primo giorno del mese uso una lista a due colonne\". Mese e anno non sono disponibili nell’estratto.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r06-3",
+            "text": "Account holder: strategia proposta per il periodo dal 1 giugno 2028, dividere gli ordini per colore. Non valida in maggio.",
+            "subject": "ACCOUNT_HOLDER"
+          },
+          {
+            "id": "followup-r06-4",
+            "text": "Account holder: piano valido dal 1 al 31 maggio 2028, leggere ad alta voce il codice del primo ordine prima di confrontarlo con la lista.",
+            "subject": "ACCOUNT_HOLDER"
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r06-4", "followup-r06-2"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "uncertain",
+          "candidate_2": "irrelevant",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "The date in the query is explicit, so April and June strategies do not answer it. The undated monthly fragment cannot confidently be assigned to or excluded from May.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_1",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The context and subject match, but the validity month is missing. Retain as uncertain; relevant is a defensible coarse label."
+        }
+      ]
+    },
+    {
+      "id": "followup-rank-07",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "According to the latest accepted workshop handbook, which room do we use and what is the check-in sequence?",
+        "source": "document",
+        "items": [
+          {
+            "id": "followup-r07-1",
+            "text": "Workshop handbook, original accepted Section 2. This section remains valid: check the name list, hand over a badge, then direct the visitor to a seat."
+          },
+          {
+            "id": "followup-r07-2",
+            "text": "Workshop handbook, original Section 1: use Room 12. This room assignment was superseded by accepted Addendum A."
+          },
+          {
+            "id": "followup-r07-3",
+            "text": "Accepted Addendum A: use Room 18. This addendum replaces only Section 1’s room assignment; the Section 2 check-in sequence remains unchanged."
+          },
+          {
+            "id": "followup-r07-4",
+            "text": "Unrelated catering sheet: use the blue crate for empty bottles."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r07-1", "followup-r07-3"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "Supersession is limited to the room section. The older check-in section remains authoritative; blanket removal of every original-handbook excerpt would lose required information.",
+      "ambiguity": []
+    },
+    {
+      "id": "followup-rank-08",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "In base al documento approvato per la giornata aperta, a che ora apriamo e chi accoglie i visitatori?",
+        "source": "document",
+        "items": [
+          {
+            "id": "followup-r08-1",
+            "text": "Giornata aperta, revisione 3 più recente ma ancora BOZZA NON APPROVATA: apertura alle 11. Non sostituisce la revisione 2 approvata."
+          },
+          {
+            "id": "followup-r08-2",
+            "text": "Giornata aperta, revisione 2 APPROVATA E VIGENTE: apertura alle 10."
+          },
+          {
+            "id": "followup-r08-3",
+            "text": "Giornata aperta, revisione 3 BOZZA NON APPROVATA: l’accoglienza sarebbe affidata al gruppo logistica. Decisione non adottata."
+          },
+          {
+            "id": "followup-r08-4",
+            "text": "Giornata aperta, revisione 2 APPROVATA E VIGENTE: il gruppo biblioteca accoglie i visitatori."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["followup-r08-2", "followup-r08-4"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "Recency alone does not make a draft authoritative. Both requested facts come from the approved version that remains in force.",
+      "ambiguity": []
+    }
+  ],
+  "answerFixtures": [
+    {
+      "turn": {
+        "scenarioId": "followup-answer-01",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "The timekeeper is Sela.",
+        "assistantText": "Please tell me who the facilitator is.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "At this event the timekeeper is also the facilitator."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "followup-rq-pair-01",
+      "language": "en",
+      "role": "defect",
+      "rationale": "The two visible statements establish that Sela is the facilitator. The imperative requests an answer already available by direct role identity.",
+      "checkRationales": {
+        "repeated_question": "The two visible statements establish that Sela is the facilitator. The imperative requests an answer already available by direct role identity.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "The timekeeper is Sela."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Please tell me who the facilitator is."
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "At this event the timekeeper is also the facilitator."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["role-identity", "imperative-question"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-02",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "The timekeeper is Sela.",
+        "assistantText": "Does Sela use a signal for the last minute?",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "At this event the timekeeper is also the facilitator."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "followup-rq-pair-01",
+      "language": "en",
+      "role": "control",
+      "rationale": "The identity of the facilitator does not establish a time signal; the complete context contains no answer to that question.",
+      "checkRationales": {
+        "repeated_question": "The question requests information not answered in the complete supplied context.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "The timekeeper is Sela."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Does Sela use a signal for the last minute?"
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "At this event the timekeeper is also the facilitator."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["role-identity", "imperative-question"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-03",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Per l’incontro userò soltanto il collegamento audio, senza video.",
+        "assistantText": "Parteciperai con il video acceso?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": false,
+        "personalContextComplete": false,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "followup-rq-pair-02",
+      "language": "it",
+      "role": "defect",
+      "rationale": "The current user statement explicitly answers the video question. Incomplete older history does not make this visible answer uncertain.",
+      "checkRationales": {
+        "repeated_question": "The current user statement explicitly answers the video question. Incomplete older history does not make this visible answer uncertain.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Per l’incontro userò soltanto il collegamento audio, senza video."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Parteciperai con il video acceso?"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "incomplete-history",
+        "visible-answer",
+        "intentional-uncertainty"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-04",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Per l’incontro userò soltanto il collegamento audio, senza video.",
+        "assistantText": "Quante persone parteciperanno all’incontro?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": false,
+        "personalContextComplete": false,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "uncertain",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "followup-rq-pair-02",
+      "language": "it",
+      "role": "control",
+      "rationale": "The participant count is not supplied, and older history is missing. It may already have been answered there, so repeated-question status is uncertain.",
+      "checkRationales": {
+        "repeated_question": "The current turn does not answer this question, but earlier history is explicitly incomplete, so its novelty cannot be established.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Per l’incontro userò soltanto il collegamento audio, senza video."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Quante persone parteciperanno all’incontro?"
+        }
+      ],
+      "ambiguity": {
+        "scope": "repeated_question only",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": [],
+        "rationale": "Intentional uncertainty from incomplete history. The current turn supplies the video setting but no participant count."
+      },
+      "tags": [
+        "incomplete-history",
+        "visible-answer",
+        "intentional-uncertainty"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-05",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Correction: the shortlist contains four charities, not four people.",
+        "assistantText": "You are choosing which of those four people receives the donation.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "I have a shortlist of four options for where the fundraiser’s donation goes."
+          },
+          {
+            "role": "assistant",
+            "content": "So you are choosing among four people to receive the donation."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "followup-ic-pair-01",
+      "language": "en",
+      "role": "defect",
+      "rationale": "The reply preserves the wrong kind of recipient after an explicit correction and states a personal task circumstance contradicted by the user.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The reply preserves the wrong kind of recipient after an explicit correction and states a personal task circumstance contradicted by the user.",
+        "unsupported_personal_fact": "The reply preserves the wrong kind of recipient after an explicit correction and states a personal task circumstance contradicted by the user.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Correction: the shortlist contains four charities, not four people."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "You are choosing which of those four people receives the donation."
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "I have a shortlist of four options for where the fundraiser’s donation goes."
+        },
+        {
+          "source": "turn.transcript.1.content",
+          "quote": "So you are choosing among four people to receive the donation."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["entity-type-correction", "donation-task"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-06",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Correction: the shortlist contains four charities, not four people.",
+        "assistantText": "Your shortlist contains four charities as possible donation recipients.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "I have a shortlist of four options for where the fundraiser’s donation goes."
+          },
+          {
+            "role": "assistant",
+            "content": "So you are choosing among four people to receive the donation."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "followup-ic-pair-01",
+      "language": "en",
+      "role": "control",
+      "rationale": "The reply preserves the corrected kind and number of recipients without adding a new personal claim.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The reply follows the explicit correction.",
+        "unsupported_personal_fact": "The personal statements stay within the supplied evidence and preserve unknowns.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Correction: the shortlist contains four charities, not four people."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Your shortlist contains four charities as possible donation recipients."
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "I have a shortlist of four options for where the fundraiser’s donation goes."
+        },
+        {
+          "source": "turn.transcript.1.content",
+          "quote": "So you are choosing among four people to receive the donation."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["entity-type-correction", "donation-task"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-07",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Correggi una cosa: è sabato pomeriggio, non domenica mattina. Conserva solo questa indicazione, senza inventare un’ora esatta.",
+        "assistantText": "\"Il gruppo si incontrerà domenica mattina.\"",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Puoi scrivere un avviso per il mio gruppo di lettura?"
+          },
+          {
+            "role": "assistant",
+            "content": "\"Il gruppo si incontrerà domenica mattina.\""
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "followup-ic-pair-02",
+      "language": "it",
+      "role": "defect",
+      "rationale": "The reply returns the uncorrected draft and does not perform the requested correction. The quoted announcement is draft text, not an independent claim by the assistant.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The reply returns the uncorrected draft and does not perform the requested correction. The quoted announcement is draft text, not an independent claim by the assistant.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The reply returns the uncorrected draft and does not perform the requested correction. The quoted announcement is draft text, not an independent claim by the assistant."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Correggi una cosa: è sabato pomeriggio, non domenica mattina. Conserva solo questa indicazione, senza inventare un’ora esatta."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "\"Il gruppo si incontrerà domenica mattina.\""
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "Puoi scrivere un avviso per il mio gruppo di lettura?"
+        },
+        {
+          "source": "turn.transcript.1.content",
+          "quote": "\"Il gruppo si incontrerà domenica mattina.\""
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["draft-correction", "relative-time", "quoted-output"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-08",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Correggi una cosa: è sabato pomeriggio, non domenica mattina. Conserva solo questa indicazione, senza inventare un’ora esatta.",
+        "assistantText": "\"Il gruppo si incontrerà sabato pomeriggio.\"",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Puoi scrivere un avviso per il mio gruppo di lettura?"
+          },
+          {
+            "role": "assistant",
+            "content": "\"Il gruppo si incontrerà domenica mattina.\""
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "followup-ic-pair-02",
+      "language": "it",
+      "role": "control",
+      "rationale": "The reply applies the requested correction within the draft and invents no exact time.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The reply follows the explicit correction.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The requested output is provided."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Correggi una cosa: è sabato pomeriggio, non domenica mattina. Conserva solo questa indicazione, senza inventare un’ora esatta."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "\"Il gruppo si incontrerà sabato pomeriggio.\""
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "Puoi scrivere un avviso per il mio gruppo di lettura?"
+        },
+        {
+          "source": "turn.transcript.1.content",
+          "quote": "\"Il gruppo si incontrerà domenica mattina.\""
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["draft-correction", "relative-time", "quoted-output"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-09",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "I have read that advice, but I have no records of trying it.",
+        "assistantText": "You have used timed rehearsals successfully for months.",
+        "transcript": [
+          {
+            "role": "assistant",
+            "content": "Some speakers rehearse with a timer."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "followup-pf-pair-01",
+      "language": "en",
+      "role": "defect",
+      "rationale": "Generic advice plus having read it does not establish personal use, success, or months of experience. The complete supplied context contains none of those facts.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "Generic advice plus having read it does not establish personal use, success, or months of experience. The complete supplied context contains none of those facts.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "I have read that advice, but I have no records of trying it."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "You have used timed rehearsals successfully for months."
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "Some speakers rehearse with a timer."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["advice-provenance", "absence-of-records"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-10",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "I have read that advice, but I have no records of trying it.",
+        "assistantText": "You have read advice about a timer; whether you have tried it is not established here.",
+        "transcript": [
+          {
+            "role": "assistant",
+            "content": "Some speakers rehearse with a timer."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "followup-pf-pair-01",
+      "language": "en",
+      "role": "control",
+      "rationale": "The reply distinguishes reading advice from evidence of trying it and does not turn absent records into proof of never trying it.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "The personal statements stay within the supplied evidence and preserve unknowns.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "I have read that advice, but I have no records of trying it."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "You have read advice about a timer; whether you have tried it is not established here."
+        },
+        {
+          "source": "turn.transcript.0.content",
+          "quote": "Some speakers rehearse with a timer."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["advice-provenance", "absence-of-records"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-11",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "In due dei miei quattro turni recenti ho iniziato puntuale. Degli altri due non ho segnato l’orario.",
+        "assistantText": "Negli altri due turni sei arrivato in ritardo.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "followup-pf-pair-02",
+      "language": "it",
+      "role": "defect",
+      "rationale": "Missing arrival records do not establish lateness. The reply converts an unknown outcome into an asserted negative outcome.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "Missing arrival records do not establish lateness. The reply converts an unknown outcome into an asserted negative outcome.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "In due dei miei quattro turni recenti ho iniziato puntuale. Degli altri due non ho segnato l’orario."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Negli altri due turni sei arrivato in ritardo."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["partial-evidence", "unknown-is-not-negative"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-12",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "In due dei miei quattro turni recenti ho iniziato puntuale. Degli altri due non ho segnato l’orario.",
+        "assistantText": "Hai segnato due inizi puntuali; per gli altri due non c’è un orario registrato.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "followup-pf-pair-02",
+      "language": "it",
+      "role": "control",
+      "rationale": "The reply preserves the two known punctual starts and the two unknown start times.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "The personal statements stay within the supplied evidence and preserve unknowns.",
+        "unaddressed_request": "The latest user turn is a statement rather than a task request."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "In due dei miei quattro turni recenti ho iniziato puntuale. Degli altri due non ho segnato l’orario."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Hai segnato due inizi puntuali; per gli altri due non c’è un orario registrato."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["partial-evidence", "unknown-is-not-negative"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-13",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Give me one sentence to say if the facilitator interrupts me. Do not ask me to rehearse it now.",
+        "assistantText": "Say your opening line out loud three times, then tell me what you notice.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "followup-ur-pair-01",
+      "language": "en",
+      "role": "defect",
+      "rationale": "The reply assigns rehearsal that was explicitly excluded and omits the requested sentence. Its request for new observations is not a repeated question.",
+      "checkRationales": {
+        "repeated_question": "The question requests information not answered in the complete supplied context.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The reply assigns rehearsal that was explicitly excluded and omits the requested sentence. Its request for new observations is not a repeated question."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Give me one sentence to say if the facilitator interrupts me. Do not ask me to rehearse it now."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Say your opening line out loud three times, then tell me what you notice."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["excluded-prerequisite", "imperative", "draft-boundary"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-14",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Give me one sentence to say if the facilitator interrupts me. Do not ask me to rehearse it now.",
+        "assistantText": "\"Please let me finish this point, and then I will come to your question.\"",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "followup-ur-pair-01",
+      "language": "en",
+      "role": "control",
+      "rationale": "The reply supplies one usable sentence for the stated condition. The instruction inside the quote is addressed to the facilitator, not to the user.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The requested output is provided."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Give me one sentence to say if the facilitator interrupts me. Do not ask me to rehearse it now."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "\"Please let me finish this point, and then I will come to your question.\""
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["excluded-prerequisite", "imperative", "draft-boundary"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-15",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Il testo del volantino dice: \"Iscriviti entro venerdì\". Traduci soltanto questa frase in inglese.",
+        "assistantText": "Per iscriverti, prepara la tua richiesta e inviala entro venerdì.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "followup-ur-pair-02",
+      "language": "it",
+      "role": "defect",
+      "rationale": "The reply treats the quoted command as a task for the user instead of carrying out the actual request to translate it.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The reply treats the quoted command as a task for the user instead of carrying out the actual request to translate it."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Il testo del volantino dice: \"Iscriviti entro venerdì\". Traduci soltanto questa frase in inglese."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "Per iscriverti, prepara la tua richiesta e inviala entro venerdì."
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["quoted-task", "translation", "speech-act-boundary"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "followup-answer-16",
+        "turnIndex": 1,
+        "sampleId": "synthetic-independent-followup",
+        "modelId": "synthetic-authored-answer",
+        "userMessage": "Il testo del volantino dice: \"Iscriviti entro venerdì\". Traduci soltanto questa frase in inglese.",
+        "assistantText": "\"Register by Friday.\"",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "followup-ur-pair-02",
+      "language": "it",
+      "role": "control",
+      "rationale": "The reply translates the quoted imperative and adds no registration instructions.",
+      "checkRationales": {
+        "repeated_question": "There is no request for information addressed to the user; any quoted instruction belongs to the requested text.",
+        "ignored_correction": "The user is not revising a prior fact or task in the supplied context.",
+        "unsupported_personal_fact": "There is no personal factual assertion outside a question, an instruction, or requested draft text.",
+        "unaddressed_request": "The requested output is provided."
+      },
+      "evidence": [
+        {
+          "source": "turn.userMessage",
+          "quote": "Il testo del volantino dice: \"Iscriviti entro venerdì\". Traduci soltanto questa frase in inglese."
+        },
+        {
+          "source": "turn.assistantText",
+          "quote": "\"Register by Friday.\""
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["quoted-task", "translation", "speech-act-boundary"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    }
+  ],
+  "labelsFrozenBeforeModelOutputs": true,
+  "separateAnalysis": {
+    "memory": [],
+    "planning": [],
+    "ranking": [
+      {
+        "caseId": "followup-rank-01",
+        "candidate": "candidate_3",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The correct subject and event are explicit, but the action is missing. Relevant is acceptable as a coarse label; retaining the item is required."
+      },
+      {
+        "caseId": "followup-rank-02",
+        "candidate": "candidate_0",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "This is explicitly the account holder’s interview strategy, but the strategy text is cut off. A coarse relevant label is acceptable; the record must remain available."
+      },
+      {
+        "caseId": "followup-rank-04",
+        "candidate": "candidate_2",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "Either Luca named in the query could be the subject. Relevant is acceptable for coarse relevance, but person attribution remains unresolved and retention is required."
+      },
+      {
+        "caseId": "followup-rank-06",
+        "candidate": "candidate_1",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The context and subject match, but the validity month is missing. Retain as uncertain; relevant is a defensible coarse label."
+      }
+    ],
+    "answer": [
+      {
+        "caseId": "followup-answer-04",
+        "targetCheck": "repeated_question",
+        "scope": "repeated_question only",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": [],
+        "rationale": "Intentional uncertainty from incomplete history. The current turn supplies the video setting but no participant count."
+      }
+    ],
+    "notes": [
+      "All content is synthetic. No provider calls, model outputs, candidate implementation, or production decision prompts were used to author this corpus.",
+      "Original four-way answer labels remain authoritative. The additive defect metric maps flagged to flagged, clear and not_applicable to clear, and uncertain to uncertain without changing those original labels.",
+      "Ranking expected order places relevant items first and uncertain items after them, preserving source order within each group.",
+      "A declared relevant alternative for an uncertain ranking item preserves required membership. Evaluate order according to the accepted relevance groups rather than forcing the frozen uncertain group.",
+      "Paired cases share a scenario and are not independent samples. Report twelve paired scenarios, eight standalone ranking cases, and thirty-two total cases.",
+      "All expectations, rationales, ambiguity declarations, and target checks are outside model input. Input identifiers do not encode expected outcomes."
+    ]
+  },
+  "localValidation": {
+    "counts": {
+      "memoryCases": 0,
+      "memoryCandidates": 0,
+      "planningCases": 8,
+      "planningPairs": 4,
+      "rankingCases": 8,
+      "rankingItems": 32,
+      "answerFixtures": 16,
+      "answerPairs": 8,
+      "totalCases": 32,
+      "predeclaredRankingAmbiguities": 4,
+      "intentionalAnswerUncertaintyCases": 1,
+      "answerEvidenceReferences": 44,
+      "memoryRankingItemsWithSubject": 22,
+      "memoryRankingItemsWithSubjectOmitted": 2
+    },
+    "checks": "Passed counts, IDs, bilingual/target balance, explicit original four-way labels, literal evidence, fixed date intervals, natural semantic-reference triggers, relevant-first ranking order, and explicit stored subject provenance boundaries. No provider, database, or runtime parser was invoked. Parent validates the actual parser and semantic path.",
+    "checkedAt": "2026-09-20T20:08:09.354960+00:00",
+    "primaryAnswerLabels": {
+      "flagged": 8,
+      "clear": 7,
+      "uncertain": 1
+    },
+    "allAnswerLabels": {
+      "flagged": 10,
+      "not_applicable": 43,
+      "clear": 10,
+      "uncertain": 1
+    },
+    "rankingLabels": {
+      "irrelevant": 16,
+      "relevant": 12,
+      "uncertain": 4
+    }
+  },
+  "answerAuthoring": {
+    "version": 1,
+    "labelStatus": "Original four-way labels frozen before model outputs.",
+    "purpose": "Independent challenge of role inference, quoted speech acts, corrections to draft text, and partial evidence.",
+    "summary": {
+      "cases": 16,
+      "pairs": 8,
+      "primaryDefects": 8,
+      "primaryControls": 8,
+      "targetLabels": {
+        "flagged": 8,
+        "clear": 7,
+        "uncertain": 1,
+        "not_applicable": 0
+      }
+    },
+    "derivedDefectMetricMapping": {
+      "flagged": "flagged",
+      "clear": "clear",
+      "not_applicable": "clear",
+      "uncertain": "uncertain"
+    }
+  },
+  "preflightCorrections": [
+    {
+      "change": "Added optional memoryKey only to explicitly attributed memory-ranking items at parent request, before model outputs. Keys reflect source subjects; no expected label changed.",
+      "sourceArtifact": "/private/tmp/jev-ready-independent-followup-pre-key.json",
+      "sourceSHA256": "0a3c13bfd19fe0c3219b0afb8b19c8ec9429cf5b5cac17ac312e2f96a7861bff",
+      "addedKeys": 22,
+      "omittedUnknownSubjects": 2
+    },
+    {
+      "change": "Replaced introduced memoryKey fields with optional explicit stored subject provenance. Keys alone cannot prove subject because legacy and live-tool keys need not use a person prefix. All text and labels are unchanged.",
+      "sourceArtifact": "/private/tmp/jev-ready-independent-followup.json",
+      "sourceSHA256": "3873805f76550c5574e2943fc84a3d52d16505dabd34b6cf13725c9c79755c63",
+      "subjectFields": 22,
+      "unknownSubjectFieldsOmitted": 2
+    }
+  ]
+}

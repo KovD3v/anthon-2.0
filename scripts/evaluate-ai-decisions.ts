@@ -43,7 +43,11 @@ export type DecisionFixtures = {
     input: RetrievalDecisionOptions & {
       query: string;
       source: "memory" | "document";
-      items: Array<{ id: string; text: string }>;
+      items: Array<{
+        id: string;
+        text: string;
+        subject?: "ACCOUNT_HOLDER" | "REFERENCED_PERSON";
+      }>;
     };
     expected: {
       retainedIds: string[];
@@ -59,11 +63,22 @@ export type DecisionFixtures = {
 };
 
 const { values } = parseArgs({
-  options: { live: { type: "boolean" }, output: { type: "string" } },
+  options: {
+    live: { type: "boolean" },
+    output: { type: "string" },
+    corpus: { type: "string", default: "fresh" },
+  },
 });
+assert(
+  ["fresh", "ready", "followup", "documents"].includes(values.corpus),
+  "--corpus must be fresh, ready, followup or documents",
+);
 const root = fileURLToPath(new URL("../", import.meta.url));
 const corpusText = readFileSync(
-  new URL("fixtures/ai-decisions-fresh-2026-09-20.json", import.meta.url),
+  new URL(
+    `fixtures/ai-decisions-${values.corpus}-2026-09-20.json`,
+    import.meta.url,
+  ),
   "utf8",
 );
 // Fixed, synthetic repository fixtures; their application schemas are checked
@@ -250,6 +265,7 @@ for (const item of corpus.rankingCases)
         ...item.input,
         userId: "synthetic-jev-live-eval",
         describe: (item) => item.text,
+        memorySubject: (item) => item.subject,
       })
     ).map((item) => item.id),
   );

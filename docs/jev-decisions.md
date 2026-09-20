@@ -32,11 +32,25 @@ otherwise supported candidates use the existing approval flow. Corrections requi
 fact's owner, ID, timestamp, revision and source freshness under the existing
 account lock. Revisions and undo use the existing storage model.
 
+New consolidated facts preserve explicit `ACCOUNT_HOLDER` or
+`REFERENCED_PERSON` attribution in the existing JSON value (`_subject`). Approval
+and undo preserve it. Legacy facts remain unattributed; keys never prove identity.
+A rewrite without verified attribution clears the old attribution.
+
 Retrieval ranking handles at most 12 candidates. Selected probability must reach
 0.80 to promote relevant evidence and 0.90 to exclude irrelevant evidence;
 uncertain or unassessed items stay. Planning requires 0.80 to enable a read. Semantic continuation can enable current-thread
 recall only, within existing permissions. Expiry is checked again after ranking.
 Raw admin document search retains its vector ordering.
+
+Ranking separates topic, person and time/version into independent questions in
+one request. Documents use topic and time/version only. Explicit stored subject
+metadata enables a holder/other-person scope check; it does not identify which
+referenced person is requested. At most 37 questions assess 12 memory candidates,
+or 24 questions assess 12 document candidates. Promotion requires every relevant
+dimension to clear 0.80; any exclusion dimension can clear 0.90. Unknowns stay
+in their original relative order. A timeout or invalid batch keeps the complete
+original result, including any distractors it contained.
 
 ## Activation and rollback
 
@@ -63,6 +77,8 @@ uses its existing 100 ms database budget. Each existing read-tool call can add
 
 Costs appear under `memory_review`, `retrieval_planning` and `retrieval_ranking`.
 Decision logs contain counts, timing and failure codes, without conversation text.
+Use the existing domain override `APP_LOG_DOMAIN_LEVELS=decisions:info` to enable
+these logs without enabling the broader AI logs. Logging defaults are unchanged.
 
 ## Offline answer checks
 
@@ -71,10 +87,13 @@ unsupported personal facts and unaddressed explicit requests. It accepts grouped
 questions when the information is still needed. It runs outside the chat path,
 does not write to the database and does not produce or rewrite answers.
 
-Reports use selected-option probability with a 0.80 cutoff and retain the
+Reports use outcome probability with a 0.80 cutoff and retain the
 distribution confidence for diagnostics. These values are different metrics,
 and neither is a measured accuracy rate. Version 2 reports use `minProbability`,
-`probability`, and personal-fact `evidenceChoice`. A personal claim absent from
+raw selected `probability`, summed `decisionProbability`, and personal-fact
+`evidenceChoice`. When mutually exclusive evidence labels map to the same outcome,
+their probabilities are added before the cutoff. This combines absence and
+contradiction only when the supplied context is complete. A personal claim absent from
 incomplete context stays uncertain; a claim contradicted by supplied evidence
 can be flagged. A question cannot be declared non-repeated when earlier history
 is missing, while a repetition established by visible evidence can be flagged.
@@ -118,3 +137,9 @@ For memory review, recall planning, ranking and answer checks together, run
 conversation data and blocks database access. The
 [fresh-test report](benchmarks/jev-fresh-2026-09-20.md) contains the results and
 separates fixture validation from measured model quality.
+
+Choose `--corpus fresh|ready|followup|documents` for the fixed synthetic sets
+(66, 68, 32 and 8 cases respectively). No external data paths are accepted.
+The [local readiness report](benchmarks/jev-readiness-2026-09-20.md) preserves all
+calibration attempts and fresh runs. Its all-check accuracy and document-ranking
+deadline gates remain unmet; successful unit tests do not establish model quality.

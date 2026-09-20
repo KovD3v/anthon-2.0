@@ -1,0 +1,480 @@
+{
+  "split": "independent-final-document-holdout",
+  "createdAt": "2026-09-20T20:19:53.326990+00:00",
+  "syntheticOnly": true,
+  "memoryCases": [],
+  "planningCases": [],
+  "rankingCases": [
+    {
+      "id": "doc-final-case-01",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "In the approved guidelines for the research pitch, how long may I speak and how many slides may I show?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-01-1",
+            "text": "Research pitch guidelines, version 4, SUPERSEDED in full by approved version 5: each speaker has eight minutes."
+          },
+          {
+            "id": "doc-final-01-2",
+            "text": "Research pitch guidelines, approved version 5, CURRENT: each speaker has six minutes."
+          },
+          {
+            "id": "doc-final-01-3",
+            "text": "Library borrowing agreement: reference books must be returned within fourteen days."
+          },
+          {
+            "id": "doc-final-01-4",
+            "text": "Research pitch guidelines, approved version 5, CURRENT: each speaker may show one slide."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-01-2", "doc-final-01-4"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "The old time limit is topical but explicitly superseded and cannot supply the approved rule. The current version supplies the requested speaking duration. Book borrowing terms are unrelated to presentation limits. The current version supplies the requested slide allowance.",
+      "itemRationales": {
+        "candidate_0": "The old time limit is topical but explicitly superseded and cannot supply the approved rule.",
+        "candidate_1": "The current version supplies the requested speaking duration.",
+        "candidate_2": "Book borrowing terms are unrelated to presentation limits.",
+        "candidate_3": "The current version supplies the requested slide allowance."
+      },
+      "coverage": [
+        "current-version",
+        "superseded-topical-distractor",
+        "unrelated-document"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-02",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Secondo il vademecum ripristinato dopo il ritiro della revisione 4, quanto dura al massimo la lettura e quando consegno il testo?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-02-1",
+            "text": "Vademecum della rassegna, revisione 4 RITIRATA: la lettura può durare nove minuti. Questa revisione non è più valida; è stata ripristinata la revisione 3."
+          },
+          {
+            "id": "doc-final-02-2",
+            "text": "Vademecum della rassegna, revisione 3 RIPRISTINATA E VIGENTE: durata massima della lettura, sette minuti."
+          },
+          {
+            "id": "doc-final-02-3",
+            "text": "Vademecum della rassegna, revisione 3 RIPRISTINATA E VIGENTE: consegna del testo entro il giorno precedente la lettura."
+          },
+          {
+            "id": "doc-final-02-4",
+            "text": "Regolamento del parcheggio comunale: la sosta oltre due ore richiede un nuovo ticket."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-02-2", "doc-final-02-3"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "relevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "La revisione con numero maggiore è stata ritirata e non disciplina più la lettura. La revisione espressamente ripristinata contiene il limite di durata applicabile. La stessa revisione ripristinata contiene il termine richiesto per il testo. La regola della sosta non riguarda la rassegna o la consegna del testo.",
+      "itemRationales": {
+        "candidate_0": "La revisione con numero maggiore è stata ritirata e non disciplina più la lettura.",
+        "candidate_1": "La revisione espressamente ripristinata contiene il limite di durata applicabile.",
+        "candidate_2": "La stessa revisione ripristinata contiene il termine richiesto per il testo.",
+        "candidate_3": "La regola della sosta non riguarda la rassegna o la consegna del testo."
+      },
+      "coverage": [
+        "current-version",
+        "withdrawn-revision",
+        "explicit-reinstatement",
+        "unrelated-document"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-03",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Under the amended outreach-demonstration manual, what is the maximum group size and what must I do at closing?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-03-1",
+            "text": "Outreach-demonstration manual, original Section 8, STILL VALID: at closing, record the number of visitors in the session log. Adopted Amendment B explicitly leaves Section 8 unchanged."
+          },
+          {
+            "id": "doc-final-03-2",
+            "text": "Outreach-demonstration manual, original Section 2, SUPERSEDED by Amendment B: maximum group size is twelve."
+          },
+          {
+            "id": "doc-final-03-3",
+            "text": "Adopted Amendment B: Section 2 now limits groups to eight people. Only the group-size rule changes; all other manual sections remain unchanged."
+          },
+          {
+            "id": "doc-final-03-4",
+            "text": "Outreach-demonstration manual, valid equipment-opening checklist: switch on the projector before admitting visitors."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-03-1", "doc-final-03-3"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The original closing section remains explicitly authoritative and answers the closing task. The replaced group-size limit is a topical distractor. The adopted amendment supplies the current group-size limit. A valid opening instruction does not answer either the group-size or closing question.",
+      "itemRationales": {
+        "candidate_0": "The original closing section remains explicitly authoritative and answers the closing task.",
+        "candidate_1": "The replaced group-size limit is a topical distractor.",
+        "candidate_2": "The adopted amendment supplies the current group-size limit.",
+        "candidate_3": "A valid opening instruction does not answer either the group-size or closing question."
+      },
+      "coverage": [
+        "partial-supersession",
+        "explicitly-unchanged-prior-section",
+        "superseded-topical-distractor",
+        "same-document-out-of-scope"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-04",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Nella procedura ancora valida per la scheda del progetto, chi deve firmare? Mi serve solo la firma, non gli importi aggiornati.",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-04-1",
+            "text": "Aggiornamento economico approvato della procedura: il rimborso massimo passa a 45 euro."
+          },
+          {
+            "id": "doc-final-04-2",
+            "text": "Procedura originale, paragrafo rimborsi SUPERATO dall’aggiornamento economico: rimborso massimo di 30 euro."
+          },
+          {
+            "id": "doc-final-04-3",
+            "text": "Procedura originale, Sezione D FIRME, ESPRESSAMENTE INVARIATA dopo l’aggiornamento economico: la scheda deve essere firmata dal referente del progetto e dal tutor."
+          },
+          {
+            "id": "doc-final-04-4",
+            "text": "Manuale del servizio acquisti: i contratti con i fornitori sono firmati dal responsabile amministrativo."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-04-3"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "L’aggiornamento è valido, ma risponde a una domanda sugli importi che il testo esclude. L’importo precedente è sia superato sia fuori dalla domanda sulla firma. La sezione precedente rimasta invariata identifica esattamente i due firmatari richiesti. I firmatari dei contratti d’acquisto appartengono a una procedura diversa.",
+      "itemRationales": {
+        "candidate_0": "L’aggiornamento è valido, ma risponde a una domanda sugli importi che il testo esclude.",
+        "candidate_1": "L’importo precedente è sia superato sia fuori dalla domanda sulla firma.",
+        "candidate_2": "La sezione precedente rimasta invariata identifica esattamente i due firmatari richiesti.",
+        "candidate_3": "I firmatari dei contratti d’acquisto appartengono a una procedura diversa."
+      },
+      "coverage": [
+        "partial-supersession",
+        "explicitly-unchanged-prior-section",
+        "same-document-out-of-scope",
+        "unrelated-procedure"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-05",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "For the retrospective on our seminar of 9 November 2027, which submission rule was valid on that date? Do not apply later changes.",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-05-1",
+            "text": "Seminar submission circular, effective from 2 December 2027 onward: send the handout at least 24 hours before the session. This replaced the October-November rule."
+          },
+          {
+            "id": "doc-final-05-2",
+            "text": "Seminar submission circular, NOW ARCHIVED, valid from 1 October through 1 December 2027 inclusive: send the handout at least 48 hours before the session."
+          },
+          {
+            "id": "doc-final-05-3",
+            "text": "Seminar submission circular, expired 30 September 2027: send the handout one week before the session. It was superseded on 1 October."
+          },
+          {
+            "id": "doc-final-05-4",
+            "text": "November 2027 travel-expense guidance: reimbursement forms require a receipt."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-05-2"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The later rule was not yet effective on the requested date. The archived rule was valid on 9 November and is required for the retrospective. The earlier rule had already expired before the requested seminar. Sharing the month does not make travel-expense guidance relevant to submission rules.",
+      "itemRationales": {
+        "candidate_0": "The later rule was not yet effective on the requested date.",
+        "candidate_1": "The archived rule was valid on 9 November and is required for the retrospective.",
+        "candidate_2": "The earlier rule had already expired before the requested seminar.",
+        "candidate_3": "Sharing the month does not make travel-expense guidance relevant to submission rules."
+      },
+      "coverage": [
+        "historical-as-of-query",
+        "archived-version-required",
+        "date-interval",
+        "unrelated-document"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-06",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Per confrontare il 10 gennaio e il 10 aprile 2028, quante bozze dovevo portare al colloquio editoriale in ciascuna data, secondo le circolari?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-06-1",
+            "text": "Circolare colloqui editoriali, valida dal 1 gennaio al 29 febbraio 2028, ora archiviata: portare due bozze."
+          },
+          {
+            "id": "doc-final-06-2",
+            "text": "Circolare colloqui editoriali, valida soltanto dal 1 al 31 marzo 2028: portare tre bozze."
+          },
+          {
+            "id": "doc-final-06-3",
+            "text": "Circolare colloqui editoriali, valida dal 1 aprile 2028: portare una bozza."
+          },
+          {
+            "id": "doc-final-06-4",
+            "text": "Circolare colloqui per l’ammissione al laboratorio fotografico: portare quattro stampe."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-06-1", "doc-final-06-3"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "La versione archiviata era valida nella prima delle due date richieste. La versione intermedia non era valida in nessuna delle due date del confronto. La versione di aprile era valida nella seconda data richiesta. Il numero di stampe riguarda un colloquio di un altro percorso.",
+      "itemRationales": {
+        "candidate_0": "La versione archiviata era valida nella prima delle due date richieste.",
+        "candidate_1": "La versione intermedia non era valida in nessuna delle due date del confronto.",
+        "candidate_2": "La versione di aprile era valida nella seconda data richiesta.",
+        "candidate_3": "Il numero di stampe riguarda un colloquio di un altro percorso."
+      },
+      "coverage": [
+        "historical-comparison",
+        "two-versions-required",
+        "intermediate-version-distractor",
+        "unrelated-document"
+      ],
+      "ambiguity": []
+    },
+    {
+      "id": "doc-final-case-07",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "What does my uploaded rehearsal agreement say about how a pause is requested?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-07-1",
+            "text": "Uploaded rehearsal agreement, damaged paragraph: \"A pause must be requested by ...\" [the rest of this paragraph is missing]. The document identity is intact."
+          },
+          {
+            "id": "doc-final-07-2",
+            "text": "Software user guide: pause the file export by selecting the stop icon in the toolbar."
+          },
+          {
+            "id": "doc-final-07-3",
+            "text": "Uploaded rehearsal agreement, complete pause procedure: a participant requests a pause by raising the yellow card."
+          },
+          {
+            "id": "doc-final-07-4",
+            "text": "Venue invoice conditions: cancellation refunds are processed within ten working days."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-07-3", "doc-final-07-1"],
+        "rawChoices": {
+          "candidate_0": "uncertain",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The exact agreement and topic match, but the requested action is missing. The fragment must remain available as uncertain rather than being discarded. A software pause is a different action in an unrelated document. The complete clause directly answers how a rehearsal pause is requested. Invoice refunds do not explain rehearsal pauses.",
+      "itemRationales": {
+        "candidate_0": "The exact agreement and topic match, but the requested action is missing. The fragment must remain available as uncertain rather than being discarded.",
+        "candidate_1": "A software pause is a different action in an unrelated document.",
+        "candidate_2": "The complete clause directly answers how a rehearsal pause is requested.",
+        "candidate_3": "Invoice refunds do not explain rehearsal pauses."
+      },
+      "coverage": [
+        "partial-evidence",
+        "known-document-missing-text",
+        "uncertainty-retention",
+        "unrelated-documents"
+      ],
+      "ambiguity": [
+        {
+          "candidate": "candidate_0",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The document and clause topic are known, but the action is cut off. A coarse relevant label is acceptable; removal is not."
+        }
+      ]
+    },
+    {
+      "id": "doc-final-case-08",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Nel regolamento vigente del laboratorio didattico, chi approva gli scambi di turno?",
+        "source": "document",
+        "items": [
+          {
+            "id": "doc-final-08-1",
+            "text": "Laboratorio didattico, regolamento 2027 SUPERATO in tutte le sue sezioni dal regolamento 2028: gli scambi di turno sono approvati dal tutor di sala."
+          },
+          {
+            "id": "doc-final-08-2",
+            "text": "Frammento nel fascicolo caricato: \"Gli scambi di turno devono ricevere l’approvazione del coordinatore\". Titolo, anno e stato di validità del documento non sono leggibili."
+          },
+          {
+            "id": "doc-final-08-3",
+            "text": "Manuale del gioco da tavolo usato in laboratorio: dopo aver pescato una carta, il turno passa al giocatore a sinistra."
+          },
+          {
+            "id": "doc-final-08-4",
+            "text": "Laboratorio didattico, regolamento 2028 APPROVATO E VIGENTE: gli scambi di turno sono approvati dalla coordinatrice del laboratorio."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["doc-final-08-4", "doc-final-08-2"],
+        "rawChoices": {
+          "candidate_0": "irrelevant",
+          "candidate_1": "uncertain",
+          "candidate_2": "irrelevant",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "Il vecchio regolamento è espressamente superato e non risponde alla domanda sulla regola vigente. Il frammento è pertinente per argomento, ma non si conoscono documento o validità. Queste lacune richiedono conservazione per incertezza. Il turno di un gioco è diverso dallo scambio di turni di lavoro richiesto. Il regolamento vigente identifica il ruolo che approva gli scambi.",
+      "itemRationales": {
+        "candidate_0": "Il vecchio regolamento è espressamente superato e non risponde alla domanda sulla regola vigente.",
+        "candidate_1": "Il frammento è pertinente per argomento, ma non si conoscono documento o validità. Queste lacune richiedono conservazione per incertezza.",
+        "candidate_2": "Il turno di un gioco è diverso dallo scambio di turni di lavoro richiesto.",
+        "candidate_3": "Il regolamento vigente identifica il ruolo che approva gli scambi."
+      },
+      "coverage": [
+        "current-version",
+        "superseded-topical-distractor",
+        "missing-version-context",
+        "uncertainty-retention"
+      ],
+      "ambiguity": [
+        {
+          "candidate": "candidate_1",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "Topic matches, while document identity and validity are unknown. Relevant is an acceptable coarse classification; the item must be retained until provenance can be resolved."
+        }
+      ]
+    }
+  ],
+  "answerFixtures": [],
+  "labelsFrozenBeforeModelOutputs": true,
+  "supplementStatus": "Additional unseen document-ranking evidence. This does not replace or erase prior cases, outcomes, or failures.",
+  "separateAnalysis": {
+    "memory": [],
+    "planning": [],
+    "ranking": [
+      {
+        "caseId": "doc-final-case-07",
+        "candidate": "candidate_0",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The document and clause topic are known, but the action is cut off. A coarse relevant label is acceptable; removal is not."
+      },
+      {
+        "caseId": "doc-final-case-08",
+        "candidate": "candidate_1",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "Topic matches, while document identity and validity are unknown. Relevant is an acceptable coarse classification; the item must be retained until provenance can be resolved."
+      }
+    ],
+    "answer": [],
+    "notes": [
+      "All documents, people, dates, and events are synthetic. No production prompts, candidate source, or model outputs were inspected to author this set.",
+      "Relevance is judged for the precise query, including requested date, adopted version, and section. A newer or topically similar document is not automatically relevant.",
+      "An archived version can answer a historical query. A prior section remains usable when an adopted amendment explicitly leaves that section unchanged.",
+      "Missing text or version context is not evidence of irrelevance. The two declared uncertainty items must remain available.",
+      "Expected order places relevant items first and uncertain items afterward, preserving input order within each group. A predeclared relevant alternative changes its group, not its required membership.",
+      "All gold labels, rationales, and ambiguity declarations are outside model input."
+    ]
+  },
+  "localValidation": {
+    "counts": {
+      "memoryCases": 0,
+      "planningCases": 0,
+      "rankingCases": 8,
+      "rankingItems": 32,
+      "answerFixtures": 0,
+      "totalCases": 8,
+      "predeclaredUncertainItems": 2,
+      "languages": {
+        "en": 4,
+        "it": 4
+      }
+    },
+    "checks": "Passed exact counts, bilingual balance, unique IDs, document-only item schema, all 32 original relevance labels, relevant-first retention order, fixed date intervals, two explicitly unchanged prior sections, superseded topical distractors, and both required uncertainty-retention declarations. No model or runtime parser call.",
+    "checkedAt": "2026-09-20T20:21:38.494140+00:00",
+    "rankingLabels": {
+      "irrelevant": 18,
+      "relevant": 12,
+      "uncertain": 2
+    }
+  }
+}
