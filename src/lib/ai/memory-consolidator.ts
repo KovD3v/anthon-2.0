@@ -186,11 +186,11 @@ export async function consolidateTurnMemory(input: {
   }
 
   let reviews: MemoryCandidateReview[] = [];
-  if (
-    prepared.length &&
-    getJevDecisionMode(process.env.AI_MEMORY_REVIEW_MODE, input.userId) !==
-      "off"
-  ) {
+  const reviewMode = getJevDecisionMode(
+    process.env.AI_MEMORY_REVIEW_MODE,
+    input.userId,
+  );
+  if (prepared.length && reviewMode !== "off") {
     try {
       const facts = await prisma.memory.findMany({
         where: {
@@ -226,9 +226,10 @@ export async function consolidateTurnMemory(input: {
     } catch (error) {
       consolidatorLogger.warn(
         "ai.memory.review_failed",
-        "Memory review unavailable; retaining extraction safeguards",
+        "Memory review unavailable",
         {
           userId: input.userId,
+          mode: reviewMode,
           errorName: error instanceof Error ? error.name : "unknown",
         },
       );
@@ -240,7 +241,7 @@ export async function consolidateTurnMemory(input: {
     { candidate, canonical, expiresAt },
   ] of prepared.entries()) {
     const review = reviews[index];
-    if (review?.reject) {
+    if (review?.reject || (reviewMode === "active" && !review)) {
       report.rejected += 1;
       continue;
     }

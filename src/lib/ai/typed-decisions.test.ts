@@ -101,6 +101,63 @@ describe("OpenRouter typed decisions", () => {
     });
   });
 
+  it("keeps chosen probability separate from distribution confidence", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json({
+        ...payload,
+        answers: {
+          decision: {
+            type: "choice",
+            choice: "yes",
+            confidence: 0.57,
+            probabilities: { yes: 0.94, no: 0.06 },
+          },
+        },
+      }),
+    );
+    expect(
+      await requestTypedDecisions({
+        state: input.state,
+        questions: { decision: input },
+      }),
+    ).toMatchObject({
+      ok: true,
+      answers: {
+        decision: {
+          choice: "yes",
+          confidence: 0.57,
+          probability: 0.94,
+          probabilities: { yes: 0.94, no: 0.06 },
+        },
+      },
+    });
+  });
+
+  it.each([
+    { yes: 0.99 },
+    { yes: 0.99, injected: 0.01 },
+    { yes: 0.3, no: 0.7 },
+    { yes: 0.6, no: 0.6 },
+  ])("rejects inconsistent choice probabilities: %j", async (probabilities) => {
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json({
+        ...payload,
+        answers: {
+          decision: {
+            type: "choice",
+            choice: "yes",
+            confidence: 1,
+            probabilities,
+          },
+        },
+      }),
+    );
+    expect(await requestTypedDecision(input)).toMatchObject({
+      ok: false,
+      failureCode: "invalid_output",
+    });
+  });
+
   it("evaluates independent questions in one request with one usage observation", async () => {
     const questions = {
       supported: {

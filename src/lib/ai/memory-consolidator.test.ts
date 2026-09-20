@@ -509,6 +509,7 @@ describe("ai/memory-consolidator", () => {
                   ? "distinct"
                   : "supported"),
             confidence: 0.99,
+            probability: 0.99,
           },
         ]),
       ),
@@ -612,7 +613,7 @@ describe("ai/memory-consolidator", () => {
   });
 
   it.each(["timeout", "invalid_output"])(
-    "keeps the extraction path working after a review %s",
+    "holds extraction after an active review %s",
     async (failureCode) => {
       enableReview();
       mocks.requestTypedDecisions.mockResolvedValue({
@@ -623,10 +624,40 @@ describe("ai/memory-consolidator", () => {
         durationMs: 5,
       });
       mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
-      expect((await consolidateTurnMemory(input)).persisted).toBe(1);
-      expect(mocks.rememberFact).toHaveBeenCalledWith(
-        expect.objectContaining({ key: "training_schedule" }),
+      expect((await consolidateTurnMemory(input)).rejected).toBe(1);
+      expect(mocks.rememberFact).not.toHaveBeenCalled();
+      expect(mocks.createMemoryApproval).not.toHaveBeenCalled();
+      expect(mocks.updateCanonicalProfile).not.toHaveBeenCalled();
+      expect(mocks.updateCanonicalPreferences).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["active", "shadow"])(
+    "respects %s review mode if the memory lookup throws",
+    async (mode) => {
+      enableReview();
+      vi.stubEnv("AI_MEMORY_REVIEW_MODE", mode);
+      mocks.memoryFindMany.mockRejectedValueOnce(new Error("unavailable"));
+      mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
+      expect(await consolidateTurnMemory(input)).toEqual({
+        considered: 1,
+        persisted: mode === "active" ? 0 : 1,
+        approvalsCreated: 0,
+        rejected: mode === "active" ? 1 : 0,
+      });
+      expect(mocks.requestTypedDecisions).not.toHaveBeenCalled();
+      expect(mocks.rememberFact).toHaveBeenCalledTimes(
+        mode === "active" ? 0 : 1,
       );
     },
   );
+
+  it("holds facts when the active reviewer throws instead of returning a result", async () => {
+    enableReview();
+    mocks.requestTypedDecisions.mockRejectedValueOnce(new Error("unavailable"));
+    mocks.extractMemoryCandidates.mockResolvedValue([candidate()]);
+    expect((await consolidateTurnMemory(input)).rejected).toBe(1);
+    expect(mocks.rememberFact).not.toHaveBeenCalled();
+    expect(mocks.createMemoryApproval).not.toHaveBeenCalled();
+  });
 });

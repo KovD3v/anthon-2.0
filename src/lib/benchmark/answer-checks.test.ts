@@ -33,7 +33,21 @@ const success = (
   durationMs: 120,
   usage: { input_tokens: 350, output_tokens: 35, cost: 0.000012 },
   answers: Object.fromEntries(
-    ANSWER_CHECK_IDS.map((id) => [id, { choice: labels[id], confidence }]),
+    ANSWER_CHECK_IDS.map((id) => [
+      id,
+      {
+        choice:
+          id === "unsupported_personal_fact"
+            ? labels[id] === "flagged"
+              ? "contradicted"
+              : labels[id] === "clear"
+                ? "supported"
+                : labels[id]
+            : labels[id],
+        confidence,
+        probability: confidence,
+      },
+    ]),
   ),
 });
 
@@ -139,7 +153,7 @@ describe("offline answer checks", () => {
     );
   });
 
-  it("retains low-confidence raw choices but reports uncertainty, including low-confidence N/A", async () => {
+  it("retains raw choices with low selected probability but reports uncertainty, including N/A", async () => {
     const report = await evaluateAnswerChecks([turn], {
       request: async () => success(choices("not_applicable"), 0.6),
     });
@@ -147,12 +161,123 @@ describe("offline answer checks", () => {
       status: "uncertain",
       choice: "not_applicable",
       confidence: 0.6,
+      probability: 0.6,
     });
     expect(report.summary.checks.repeated_question).toMatchObject({
       decidedApplicable: 0,
       not_applicable: 0,
       uncertain: 1,
     });
+  });
+
+  it("uses selected-option probability rather than distribution confidence", async () => {
+    const response = success();
+    if (!response.ok) throw new Error("Test setup");
+    response.answers.repeated_question = {
+      choice: "clear",
+      confidence: 0.99,
+      probability: 0.6,
+    };
+    response.answers.ignored_correction = {
+      choice: "not_applicable",
+      confidence: 0.4,
+      probability: 0.92,
+    };
+    const report = await evaluateAnswerChecks([turn], {
+      request: async () => response,
+    });
+    expect(report.results[0].checks.repeated_question).toMatchObject({
+      status: "uncertain",
+      choice: "clear",
+      confidence: 0.99,
+      probability: 0.6,
+    });
+    expect(report.results[0].checks.ignored_correction).toMatchObject({
+      status: "not_applicable",
+      confidence: 0.4,
+      probability: 0.92,
+    });
+    expect(report).toMatchObject({ version: 2, minProbability: 0.8 });
+    expect(report).not.toHaveProperty("minConfidence");
+  });
+
+  it("does not treat missing probability as confidence or as a failed call", async () => {
+    const response = success();
+    if (!response.ok) throw new Error("Test setup");
+    for (const answer of Object.values(response.answers))
+      delete answer.probability;
+    const report = await evaluateAnswerChecks([turn], {
+      request: async () => response,
+    });
+    expect(report.results[0].checks.repeated_question).toMatchObject({
+      status: "uncertain",
+      confidence: 0.95,
+      probability: null,
+    });
+    expect(report.summary).toMatchObject({
+      uncertainTurns: 1,
+      failedTurns: 0,
+      knownCostCalls: 1,
+    });
+  });
+
+  it("distinguishes absence from contradiction when personal context is incomplete", async () => {
+    const absent = success();
+    const contradicted = success();
+    if (!absent.ok || !contradicted.ok) throw new Error("Test setup");
+    absent.answers.unsupported_personal_fact = {
+      choice: "absent",
+      confidence: 0.99,
+      probability: 0.99,
+    };
+    contradicted.answers.unsupported_personal_fact = {
+      choice: "contradicted",
+      confidence: 0.99,
+      probability: 0.99,
+    };
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(absent)
+      .mockResolvedValueOnce(absent)
+      .mockResolvedValueOnce(contradicted)
+      .mockResolvedValueOnce(absent);
+    const report = await evaluateAnswerChecks(
+      [
+        turn,
+        { ...turn, personalContextComplete: false },
+        { ...turn, personalContextComplete: false },
+        { ...turn, historyComplete: false },
+      ],
+      { request },
+    );
+    expect(
+      report.results.map((result) => result.checks.unsupported_personal_fact),
+    ).toMatchObject([
+      { status: "flagged", evidenceChoice: "absent" },
+      { status: "uncertain", evidenceChoice: "absent" },
+      { status: "flagged", evidenceChoice: "contradicted" },
+      { status: "uncertain", evidenceChoice: "absent" },
+    ]);
+  });
+
+  it("cannot clear repetition with missing history but retains positive evidence and N/A", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(success(choices("clear")))
+      .mockResolvedValueOnce(success(choices("flagged")))
+      .mockResolvedValueOnce(success(choices("not_applicable")));
+    const incompleteTurn = { ...turn, historyComplete: false };
+    const report = await evaluateAnswerChecks(
+      [incompleteTurn, incompleteTurn, incompleteTurn],
+      { request },
+    );
+    expect(
+      report.results.map((result) => result.checks.repeated_question),
+    ).toMatchObject([
+      { choice: "clear", status: "uncertain", probability: 0.95 },
+      { choice: "flagged", status: "flagged", probability: 0.95 },
+      { choice: "not_applicable", status: "not_applicable", probability: 0.95 },
+    ]);
   });
 
   it("compares fixture labels with decided denominators and distinct abstention/failure counts", async () => {

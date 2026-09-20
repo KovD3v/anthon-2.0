@@ -92,8 +92,14 @@ describe("recall context", () => {
       durationMs: 10,
       attempted: true,
       answers: input.questions.recall
-        ? { recall: { choice: "recall", confidence: 0.95 } }
-        : { candidate_0: { choice: "relevant", confidence: 0.9 } },
+        ? { recall: { choice: "recall", confidence: 0.95, probability: 0.95 } }
+        : {
+            candidate_0: {
+              choice: "relevant",
+              confidence: 0.9,
+              probability: 0.9,
+            },
+          },
     }));
     const { buildRecallContext } = await import("./recall-context");
     const result = await buildRecallContext({
@@ -164,8 +170,16 @@ describe("recall context", () => {
                 durationMs: 300,
                 attempted: true,
                 answers: {
-                  candidate_0: { choice: "relevant", confidence: 0.95 },
-                  candidate_1: { choice: "relevant", confidence: 0.95 },
+                  candidate_0: {
+                    choice: "relevant",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
+                  candidate_1: {
+                    choice: "relevant",
+                    confidence: 0.95,
+                    probability: 0.95,
+                  },
                 },
               }),
             300,

@@ -7,8 +7,10 @@ date resolution and database mutations keep their existing implementations.
 
 `src/lib/ai/typed-decisions.ts` sends independent Choice questions in one
 OpenRouter Decisions request. Every requested answer must have a valid choice
-and confidence. Missing or malformed answers fail the batch; callers retain
-their existing fallback. Usage is recorded once per request, including known
+and confidence. Selected-option probabilities and the full distribution are
+preserved separately. Missing or malformed answers fail the batch. New cores
+require selected probability and do not fall back to confidence; legacy gate
+and voice scoring retain their existing behavior. Usage is recorded once per request, including known
 supplier costs on failures.
 
 | Core | Before the operation | After the operation |
@@ -21,13 +23,18 @@ retrieved data. Batching does not combine dependent decisions.
 
 Memory review handles at most eight candidates and three matching peers per
 candidate from 32 recent facts. It checks against the original user message.
-Uncertain matches do not merge facts; sensitive information retains the existing
-approval flow. Corrections require explicit user evidence and recheck the stored
+Active review skips saving a candidate when factual support or person attribution
+is uncertain, a call fails, the input exceeds review bounds, or review is missing.
+There is no deferred retry queue. Both support and attribution require selected
+probability at least 0.90. Uncertain matches do not merge facts; a semantic match
+requires 0.98. Sensitivity must clear 0.90 for ordinary automatic storage;
+otherwise supported candidates use the existing approval flow. Corrections require explicit user evidence and recheck the stored
 fact's owner, ID, timestamp, revision and source freshness under the existing
 account lock. Revisions and undo use the existing storage model.
 
-Retrieval ranking handles at most 12 candidates. Confident irrelevant items can
-be removed; uncertain items stay. Semantic continuation can enable current-thread
+Retrieval ranking handles at most 12 candidates. Selected probability must reach
+0.80 to promote relevant evidence and 0.90 to exclude irrelevant evidence;
+uncertain or unassessed items stay. Planning requires 0.80 to enable a read. Semantic continuation can enable current-thread
 recall only, within existing permissions. Expiry is checked again after ranking.
 Raw admin document search retains its vector ordering.
 
@@ -49,8 +56,8 @@ to roll back. The existing `AI_MEMORY_GATE_MODE` and voice behavior are unchange
 Memory retrieval still requires the existing memory-recall release gate.
 
 Memory review has a 1,500 ms provider timeout and runs after the reply. Retrieval
-planning allows 450 ms and ranking 600 ms per call, without retries. The prompt
-recall path can add up to 1,050 ms of Jev work; a newly enabled thread search also
+planning allows 750 ms and ranking 600 ms per call, without retries. The prompt
+recall path can add up to 1,350 ms of Jev work; a newly enabled thread search also
 uses its existing 100 ms database budget. Each existing read-tool call can add
 600 ms independently. These are timeout bounds, not measured latency gains.
 
@@ -63,6 +70,16 @@ The evaluator checks saved answers for repeated questions, ignored corrections,
 unsupported personal facts and unaddressed explicit requests. It accepts grouped
 questions when the information is still needed. It runs outside the chat path,
 does not write to the database and does not produce or rewrite answers.
+
+Reports use selected-option probability with a 0.80 cutoff and retain the
+distribution confidence for diagnostics. These values are different metrics,
+and neither is a measured accuracy rate. Version 2 reports use `minProbability`,
+`probability`, and personal-fact `evidenceChoice`. A personal claim absent from
+incomplete context stays uncertain; a claim contradicted by supplied evidence
+can be flagged. A question cannot be declared non-repeated when earlier history
+is missing, while a repetition established by visible evidence can be flagged.
+The [calibration report](benchmarks/jev-calibration-2026-09-20.md) separates live
+held-out results, later deterministic replay, and remaining abstentions.
 
 ```bash
 # Validate the built-in synthetic evaluation plan; no provider calls.

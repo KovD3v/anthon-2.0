@@ -521,8 +521,16 @@ describe("ai/rag", () => {
       durationMs: 10,
       attempted: true,
       answers: {
-        candidate_0: { choice: "irrelevant", confidence: 0.99 },
-        candidate_1: { choice: "relevant", confidence: 0.95 },
+        candidate_0: {
+          choice: "irrelevant",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        candidate_1: {
+          choice: "relevant",
+          confidence: 0.95,
+          probability: 0.95,
+        },
       },
     });
     const { getRagContext, searchDocuments } = await loadModule();

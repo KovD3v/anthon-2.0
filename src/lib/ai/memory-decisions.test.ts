@@ -58,7 +58,11 @@ const input = {
   existingFacts: [existing],
 };
 
-function respond(overrides: Record<string, string> = {}, confidence = 0.99) {
+function respond(
+  overrides: Record<string, string> = {},
+  probability = 0.99,
+  confidence = 0.99,
+) {
   vi.mocked(requestTypedDecisions).mockImplementation(
     async ({ questions }) => ({
       ok: true,
@@ -77,6 +81,7 @@ function respond(overrides: Record<string, string> = {}, confidence = 0.99) {
                   ? "distinct"
                   : "supported"),
             confidence,
+            probability,
           },
         ]),
       ),
@@ -153,13 +158,43 @@ describe("Jev memory review", () => {
     }
   });
 
-  it.each(["support_0", "subject_0"])(
-    "rejects a confident %s violation independently",
-    async (question) => {
-      respond({ [question]: "unsupported" });
+  it.each(
+    ["support_0", "subject_0"].flatMap((question) =>
+      ["unsupported", "uncertain"].map((choice) => [question, choice]),
+    ),
+  )(
+    "holds a %s %s judgment even with low confidence",
+    async (question, choice) => {
+      respond({ [question]: choice }, 0.33, 0.22);
       expect((await reviewMemoryCandidates(input))[0].reject).toBe(true);
     },
   );
+
+  it("uses the chosen probability rather than confidence to authorize a supported fact", async () => {
+    respond({}, 0.99, 0.33);
+    expect(await reviewMemoryCandidates(input)).toEqual([
+      { reject: false, requiresApproval: false },
+    ]);
+    respond({}, 0.57, 0.99);
+    expect((await reviewMemoryCandidates(input))[0].reject).toBe(true);
+  });
+
+  it("holds facts when the provider supplies confidence without a probability", async () => {
+    vi.mocked(requestTypedDecisions).mockResolvedValue({
+      ok: true,
+      attempted: true,
+      modelId: "typesafe/jev-1.13",
+      durationMs: 5,
+      answers: {
+        support_0: { choice: "supported", confidence: 0.99 },
+        subject_0: { choice: "supported", confidence: 0.99 },
+        sensitivity_0: { choice: "ordinary", confidence: 0.99 },
+      },
+    });
+    expect(await reviewMemoryCandidates(input)).toEqual([
+      { reject: true, requiresApproval: false },
+    ]);
+  });
 
   it("does not let a model-invented referenced person pass a literal subject check", async () => {
     const candidate = {
@@ -285,7 +320,10 @@ describe("Jev memory review", () => {
 
   it("requires confirmed subject and source support before a semantic merge", async () => {
     respond({ subject_0: "uncertain", match_0_0: "equivalent" });
-    expect((await reviewMemoryCandidates(input))[0].match).toBeUndefined();
+    expect((await reviewMemoryCandidates(input))[0]).toEqual({
+      reject: true,
+      requiresApproval: false,
+    });
     respond({ support_0: "uncertain", match_0_0: "equivalent" });
     expect((await reviewMemoryCandidates(input))[0].match).toBeUndefined();
   });
@@ -306,6 +344,17 @@ describe("Jev memory review", () => {
         })
       )[0],
     ).toEqual({ reject: false, requiresApproval: true });
+  });
+
+  it("requires consent for uncertain sensitivity without accepting unsupported facts", async () => {
+    respond({ sensitivity_0: "uncertain", match_0_0: "equivalent" });
+    expect(await reviewMemoryCandidates(input)).toEqual([
+      { reject: false, requiresApproval: true },
+    ]);
+    respond({ sensitivity_0: "sensitive", support_0: "uncertain" });
+    expect(await reviewMemoryCandidates(input)).toEqual([
+      { reject: true, requiresApproval: false },
+    ]);
   });
 
   it("does not collapse different expiries or retarget a newer source fact", async () => {
@@ -333,7 +382,7 @@ describe("Jev memory review", () => {
   });
 
   it.each(["timeout", "invalid_output"] as const)(
-    "preserves baseline safeguards when the review returns %s",
+    "holds unreviewed facts when active review returns %s",
     async (failureCode) => {
       vi.mocked(requestTypedDecisions).mockResolvedValue({
         ok: false,
@@ -342,6 +391,10 @@ describe("Jev memory review", () => {
         modelId: "typesafe/jev-1.13",
         durationMs: 5,
       });
+      expect(await reviewMemoryCandidates(input)).toEqual([
+        { reject: true, requiresApproval: false },
+      ]);
+      vi.stubEnv("AI_MEMORY_REVIEW_MODE", "shadow");
       expect(await reviewMemoryCandidates(input)).toEqual([
         { reject: false, requiresApproval: false },
       ]);
@@ -405,7 +458,23 @@ describe("Jev memory review", () => {
       Object.keys(vi.mocked(requestTypedDecisions).mock.calls[0][0].questions),
     ).toHaveLength(48);
     vi.mocked(requestTypedDecisions).mockClear();
-    await reviewMemoryCandidates({ ...input, userText: "x".repeat(12_001) });
+    expect(
+      await reviewMemoryCandidates({
+        ...input,
+        userText: "x".repeat(12_001),
+      }),
+    ).toEqual([{ reject: true, requiresApproval: false }]);
+    expect(
+      await reviewMemoryCandidates({
+        ...input,
+        candidates: Array.from({ length: 9 }, () => memory),
+      }),
+    ).toEqual(
+      Array.from({ length: 9 }, () => ({
+        reject: true,
+        requiresApproval: false,
+      })),
+    );
     expect(requestTypedDecisions).not.toHaveBeenCalled();
   });
 });

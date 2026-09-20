@@ -27,7 +27,10 @@ const metadata = {
   attempted: true,
 };
 const result = (
-  answers: Record<string, { choice: string; confidence: number }>,
+  answers: Record<
+    string,
+    { choice: string; confidence: number; probability?: number }
+  >,
 ) => ({
   ...metadata,
   ok: true,
@@ -62,7 +65,9 @@ describe("Jev retrieval decisions", () => {
     vi.stubEnv("AI_RETRIEVAL_DECISIONS_MODE", "active");
     vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", "user-1");
     mocks.request.mockResolvedValue(
-      result({ recall: { choice: "recall", confidence: 0.95 } }),
+      result({
+        recall: { choice: "recall", confidence: 0.95, probability: 0.95 },
+      }),
     );
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -99,7 +104,7 @@ describe("Jev retrieval decisions", () => {
     expect(refined.facts).toBe(input.plan.facts);
     expect(refined.reasonCodes).toContain("semantic_continuity");
     expect(mocks.request).toHaveBeenCalledWith(
-      expect.objectContaining({ timeoutMs: 450 }),
+      expect.objectContaining({ timeoutMs: 750 }),
     );
     expect(mocks.usage).toHaveBeenCalledWith(
       expect.anything(),
@@ -140,8 +145,10 @@ describe("Jev retrieval decisions", () => {
   });
 
   it.each([
-    result({ recall: { choice: "recall", confidence: 0.6 } }),
-    result({ recall: { choice: "uncertain", confidence: 0.99 } }),
+    result({ recall: { choice: "recall", confidence: 0.6, probability: 0.6 } }),
+    result({
+      recall: { choice: "uncertain", confidence: 0.99, probability: 0.99 },
+    }),
     { ...metadata, ok: false, failureCode: "timeout" },
   ])(
     "preserves the deterministic plan on uncertainty or timeout",
@@ -155,11 +162,31 @@ describe("Jev retrieval decisions", () => {
   it("batches candidates and retains uncertain evidence in its original relative order", async () => {
     mocks.request.mockResolvedValue(
       result({
-        candidate_0: { choice: "irrelevant", confidence: 0.99 },
-        candidate_1: { choice: "uncertain", confidence: 0.99 },
-        candidate_2: { choice: "relevant", confidence: 0.92 },
-        candidate_3: { choice: "irrelevant", confidence: 0.4 },
-        candidate_4: { choice: "relevant", confidence: 0.96 },
+        candidate_0: {
+          choice: "irrelevant",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        candidate_1: {
+          choice: "uncertain",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+        candidate_2: {
+          choice: "relevant",
+          confidence: 0.92,
+          probability: 0.92,
+        },
+        candidate_3: {
+          choice: "irrelevant",
+          confidence: 0.4,
+          probability: 0.4,
+        },
+        candidate_4: {
+          choice: "relevant",
+          confidence: 0.96,
+          probability: 0.96,
+        },
       }),
     );
     expect(await rankRetrievedItems(rankingInput())).toEqual([
@@ -183,6 +210,43 @@ describe("Jev retrieval decisions", () => {
       expect.anything(),
       expect.objectContaining({ operation: "retrieval_ranking" }),
     );
+  });
+
+  it("uses probability with a stricter gate for removing evidence", async () => {
+    mocks.request.mockResolvedValue(
+      result({
+        recall: { choice: "recall", confidence: 0.4, probability: 0.82 },
+      }),
+    );
+    expect((await refineRecallPlan(recallInput())).conversations.enabled).toBe(
+      true,
+    );
+    mocks.request.mockResolvedValue(
+      result({
+        candidate_0: { choice: "irrelevant", confidence: 1, probability: 0.89 },
+        candidate_1: { choice: "irrelevant", confidence: 1 },
+        candidate_2: { choice: "relevant", confidence: 0.4, probability: 0.82 },
+        candidate_3: {
+          choice: "irrelevant",
+          confidence: 0.6,
+          probability: 0.95,
+        },
+        candidate_4: { choice: "relevant", confidence: 1, probability: 0.79 },
+      }),
+    );
+    expect(await rankRetrievedItems(rankingInput())).toEqual([
+      items[2],
+      items[0],
+      items[1],
+      items[4],
+    ]);
+    mocks.request.mockResolvedValue(
+      result({
+        recall: { choice: "recall", confidence: 1 },
+      }),
+    );
+    const input = recallInput();
+    expect(await refineRecallPlan(input)).toBe(input.plan);
   });
 
   it("bounds transmitted data without discarding unassessed candidates", async () => {
@@ -226,7 +290,13 @@ describe("Jev retrieval decisions", () => {
     const input = recallInput();
     expect(await refineRecallPlan(input)).toBe(input.plan);
     mocks.request.mockResolvedValue(
-      result({ candidate_0: { choice: "irrelevant", confidence: 0.99 } }),
+      result({
+        candidate_0: {
+          choice: "irrelevant",
+          confidence: 0.99,
+          probability: 0.99,
+        },
+      }),
     );
     expect(await rankRetrievedItems(rankingInput())).toBe(items);
     const logs = JSON.stringify(mocks.info.mock.calls);

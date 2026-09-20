@@ -98,6 +98,7 @@ function reviewResponse(questions: Record<string, unknown>) {
               ? "ordinary"
               : "supported",
           confidence: 0.99,
+          probability: 0.99,
         },
       ]),
     ),
@@ -107,6 +108,45 @@ function reviewResponse(questions: Record<string, unknown>) {
 describe("integration Jev semantic memory mutations", () => {
   beforeEach(resetIntegrationDb);
   afterEach(() => vi.unstubAllEnvs());
+
+  it.each(["timeout", "unsupported", "uncertain"] as const)(
+    "does not save or revise facts after an active review %s",
+    async (outcome) => {
+      const { owner, memory, input } = await fixture();
+      vi.mocked(requestTypedDecisions).mockImplementation(
+        async ({ questions }) => {
+          if (outcome === "timeout") {
+            return {
+              ok: false,
+              attempted: true,
+              modelId: "typesafe/jev-1.13",
+              durationMs: 1500,
+              failureCode: "timeout",
+            };
+          }
+          const response = reviewResponse(questions);
+          response.answers.support_0 = {
+            choice: outcome,
+            confidence: 0.22,
+            probability: 0.4,
+          };
+          return response;
+        },
+      );
+      expect(await consolidateTurnMemory(input)).toEqual({
+        considered: 1,
+        persisted: 0,
+        approvalsCreated: 0,
+        rejected: 1,
+      });
+      expect(
+        await prisma.memory.findMany({ where: { userId: owner.id } }),
+      ).toEqual([memory]);
+      expect(
+        await prisma.memoryRevision.count({ where: { memoryId: memory.id } }),
+      ).toBe(1);
+    },
+  );
 
   it("corrects the existing stable fact and undo restores original content, source and expiry", async () => {
     const { owner, memory, input } = await fixture();

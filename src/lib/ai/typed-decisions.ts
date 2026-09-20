@@ -26,7 +26,13 @@ export type TypedDecisionQuestion = {
   instructions: string;
   criteria: Record<string, string>;
 };
-export type TypedDecisionAnswer = { choice: string; confidence: number };
+export type TypedDecisionAnswer = {
+  choice: string;
+  /** Distribution-shape score; not the probability of the selected option. */
+  confidence: number;
+  probability?: number;
+  probabilities?: Record<string, number>;
+};
 type DecisionFailure = {
   ok: false;
   failureCode: TypedDecisionFailure;
@@ -210,10 +216,26 @@ export async function requestTypedDecisions(
         : undefined;
       const confidence =
         answer?.confidence ?? answer?.probabilities?.[answer.choice];
+      const probabilities = answer?.probabilities;
+      const selectedProbability = probabilities?.[answer?.choice ?? ""];
+      const options = Object.keys(question.criteria);
       if (
         !answer ||
         !Object.hasOwn(question.criteria, answer.choice) ||
-        confidence === undefined
+        confidence === undefined ||
+        (probabilities &&
+          (Object.keys(probabilities).length !== options.length ||
+            options.some((option) => !Object.hasOwn(probabilities, option)) ||
+            selectedProbability === undefined ||
+            Object.values(probabilities).some(
+              (value) => value > selectedProbability,
+            ) ||
+            Math.abs(
+              Object.values(probabilities).reduce(
+                (sum, value) => sum + value,
+                0,
+              ) - 1,
+            ) > 0.02))
       ) {
         return {
           ...metadata(),
@@ -224,7 +246,13 @@ export async function requestTypedDecisions(
           usage,
         };
       }
-      answers[id] = { choice: answer.choice, confidence };
+      answers[id] = {
+        choice: answer.choice,
+        confidence,
+        ...(probabilities
+          ? { probability: selectedProbability, probabilities }
+          : {}),
+      };
     }
     return {
       ...metadata(),
