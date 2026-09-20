@@ -127,6 +127,32 @@ describe("Jev memory review", () => {
     expect(scheduleTypedDecisionUsage).toHaveBeenCalledOnce();
   });
 
+  it("addresses each batched candidate by an explicit ID, not array position", async () => {
+    const candidates = [
+      memory,
+      {
+        ...memory,
+        candidate: { ...memory.candidate, value: "Studio venerdì sera" },
+        canonical: { ...memory.canonical, value: "Studio venerdì sera" },
+      },
+    ];
+    await reviewMemoryCandidates({ ...input, candidates });
+    const { state, questions } = vi.mocked(requestTypedDecisions).mock
+      .calls[0][0];
+    expect(state.candidates).toEqual(
+      candidates.map((candidate, index) => ({
+        id: `candidate_${index}`,
+        ...candidate,
+      })),
+    );
+    for (const [questionId, question] of Object.entries(questions)) {
+      const candidateId = `candidate_${questionId.split("_")[1]}`;
+      expect(question.instructions.startsWith(`Review ${candidateId}.`)).toBe(
+        true,
+      );
+    }
+  });
+
   it.each(["support_0", "subject_0"])(
     "rejects a confident %s violation independently",
     async (question) => {
