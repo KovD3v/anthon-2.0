@@ -111,3 +111,10 @@ Real-user exports require an approved, unexpired quality-review project under
 [ADR 0025](adr/0025-separate-admin-roles-and-set-public-launch-gates.md), supplied as
 `--input-scope approved-review --review-project ID`. The CLI does not grant access
 or verify that external approval. Use authorized exports only.
+
+For memory review, recall planning, ranking and answer checks together, run
+`bun scripts/evaluate-ai-decisions.ts` to list the fixed synthetic corpus, or add
+`--live --output NEW.jsonl` for a bounded provider run. It accepts no external
+conversation data and blocks database access. The
+[fresh-test report](benchmarks/jev-fresh-2026-09-20.md) contains the results and
+separates fixture validation from measured model quality.

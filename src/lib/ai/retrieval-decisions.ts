@@ -18,7 +18,7 @@ export const RETRIEVAL_RANKING_TIMEOUT_MS = 600;
 const MAX_CANDIDATES = 12;
 const MAX_CANDIDATE_CHARS = 1_200;
 const referencePattern =
-  /\b(that|this|those|it|your suggestion|you (?:suggested|recommended|said|told|advised)|the approach|same|quel\w*|quest\w*|quello|suggeriment\w*|strategia|(?:hai|avevi) (?:suggerito|consigliato|detto)|dicevi|l['’]ho|ci ho|lo avevo)\b/i;
+  /\b(that|this|those|it|your suggestion|you (?:suggested|recommended|said|told|advised|proposed|outlined)|the approach|same|quel\w*|quei|quegli|quest\w*|suggeriment\w*|strategia|(?:hai|avevi) (?:suggerito|consigliato|detto|proposto|indicato|descritto|elencato)|dicevi|l['’]ho|ci ho|lo avevo)\b/i;
 
 export type RetrievalDecisionOptions = {
   userId?: string;

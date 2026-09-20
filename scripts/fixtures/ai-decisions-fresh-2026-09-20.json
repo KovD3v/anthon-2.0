@@ -1,0 +1,3590 @@
+{
+  "split": "fresh-2026-09-20",
+  "authoredForCommit": "28e15521",
+  "createdAt": "2026-09-20T17:52:14.023Z",
+  "syntheticOnly": true,
+  "memoryCases": [
+    {
+      "id": "next-core-memory-01",
+      "language": "it",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Quando lavoro dallo studio uso un timer per le revisioni; quando lavoro da casa non lo uso.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "home_revision_timer",
+              "value": "Uso un timer per le revisioni quando lavoro da casa",
+              "evidence": "quando lavoro da casa non lo uso",
+              "category": "preference",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "home_revision_timer",
+              "value": "Uso un timer per le revisioni quando lavoro da casa",
+              "category": "preference"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "studio_revision_timer",
+              "value": "Uso un timer per le revisioni quando lavoro dallo studio",
+              "evidence": "Quando lavoro dallo studio uso un timer per le revisioni",
+              "category": "preference",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "studio_revision_timer",
+              "value": "Uso un timer per le revisioni quando lavoro dallo studio",
+              "category": "preference"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": true,
+          "requiresApproval": false
+        },
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "The location condition is part of the fact. The supported studio routine must not become a home routine."
+    },
+    {
+      "id": "next-core-memory-02",
+      "language": "en",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "I am assigned to coordinate registrations for our club. I might also become its spokesperson, but nobody has assigned that role yet.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "club_registration_role",
+              "value": "I coordinate registrations for our club",
+              "evidence": "I am assigned to coordinate registrations for our club",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "club_registration_role",
+              "value": "I coordinate registrations for our club",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "club_spokesperson_role",
+              "value": "I am the club spokesperson",
+              "evidence": "I might also become its spokesperson, but nobody has assigned that role yet",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "club_spokesperson_role",
+              "value": "I am the club spokesperson",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        },
+        {
+          "reject": true,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "A confirmed assignment and an unassigned possibility have different factual status even though they share the same club."
+    },
+    {
+      "id": "next-core-memory-03",
+      "language": "it",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Nel 2024 ho condotto un solo incontro di orientamento. Non è un incarico che svolgo ogni anno.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "annual_orientation_role",
+              "value": "Conduco incontri di orientamento ogni anno",
+              "evidence": "Non è un incarico che svolgo ogni anno",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "annual_orientation_role",
+              "value": "Conduco incontri di orientamento ogni anno",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "orientation_session_2024",
+              "value": "Nel 2024 ho condotto un solo incontro di orientamento",
+              "evidence": "Nel 2024 ho condotto un solo incontro di orientamento",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "orientation_session_2024",
+              "value": "Nel 2024 ho condotto un solo incontro di orientamento",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": true,
+          "requiresApproval": false
+        },
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "A completed historical event can be retained as history; the source explicitly rejects converting it into a recurring role."
+    },
+    {
+      "id": "next-core-memory-04",
+      "language": "en",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "The camera used by our club belongs to Ren, another club member. It does not belong to me.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "club_camera_ownership",
+              "value": "The club camera belongs to Ren",
+              "evidence": "The camera used by our club belongs to Ren, another club member",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "REFERENCED_PERSON",
+              "subjectName": "Ren",
+              "subjectRelationship": "club member"
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "person_ren_club_camera_ownership",
+              "value": "Ren (club member): The club camera belongs to Ren",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "club_camera_ownership",
+              "value": "The club camera belongs to me",
+              "evidence": "It does not belong to me",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "club_camera_ownership",
+              "value": "The club camera belongs to me",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        },
+        {
+          "reject": true,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "Ownership belongs to the named referenced person. The same object cannot be assigned to the account holder by dropping the possessive distinction."
+    },
+    {
+      "id": "next-core-memory-05",
+      "language": "it",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Preferisco osservazioni scritte sui progetti lunghi; per le prove brevi preferisco parlarne a voce.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "feedback_format_all_tasks",
+              "value": "Preferisco osservazioni scritte per tutti i progetti e tutte le prove",
+              "evidence": "Preferisco osservazioni scritte sui progetti lunghi",
+              "category": "preference",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "feedback_format_all_tasks",
+              "value": "Preferisco osservazioni scritte per tutti i progetti e tutte le prove",
+              "category": "preference"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "long_project_feedback_format",
+              "value": "Preferisco osservazioni scritte sui progetti lunghi",
+              "evidence": "Preferisco osservazioni scritte sui progetti lunghi",
+              "category": "preference",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "long_project_feedback_format",
+              "value": "Preferisco osservazioni scritte sui progetti lunghi",
+              "category": "preference"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": true,
+          "requiresApproval": false
+        },
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "The long-project condition is supported. A universal preference contradicts the separately stated preference for short exercises."
+    },
+    {
+      "id": "next-core-memory-06",
+      "language": "en",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "I have finished the first two modules of a four-module lighting course. The last two modules are still unfinished.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "lighting_course_progress",
+              "value": "I have finished the first two modules of a four-module lighting course",
+              "evidence": "I have finished the first two modules of a four-module lighting course",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "lighting_course_progress",
+              "value": "I have finished the first two modules of a four-module lighting course",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "lighting_course_completion",
+              "value": "I have finished the entire lighting course",
+              "evidence": "The last two modules are still unfinished",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "lighting_course_completion",
+              "value": "I have finished the entire lighting course",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        },
+        {
+          "reject": true,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "Partial progress is an explicit fact, while course completion is explicitly contradicted."
+    },
+    {
+      "id": "next-core-memory-07",
+      "language": "it",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "La mia amica Daria mi ha scritto questo messaggio su di sé: «Seguo lezioni di doppiaggio». Io seguo lezioni di montaggio video.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "dubbing_lessons",
+              "value": "Seguo lezioni di doppiaggio",
+              "evidence": "Seguo lezioni di doppiaggio",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "dubbing_lessons",
+              "value": "Seguo lezioni di doppiaggio",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "reported_dubbing_lessons",
+              "value": "Daria riferisce di seguire lezioni di doppiaggio",
+              "evidence": "La mia amica Daria mi ha scritto questo messaggio su di sé: «Seguo lezioni di doppiaggio»",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "REFERENCED_PERSON",
+              "subjectName": "Daria",
+              "subjectRelationship": "amica"
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "person_daria_reported_dubbing_lessons",
+              "value": "Daria (amica): Daria riferisce di seguire lezioni di doppiaggio",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": true,
+          "requiresApproval": false
+        },
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "A forwarded first-person statement is about its named speaker. The eligible memory preserves both attribution and the fact that this was reported."
+    },
+    {
+      "id": "next-core-memory-08",
+      "language": "en",
+      "group": "paired",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "If I ever take up coaching, I would work with adults. At present I only keep score for local chess matches.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "chess_scorekeeping_role",
+              "value": "I keep score for local chess matches",
+              "evidence": "At present I only keep score for local chess matches",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "chess_scorekeeping_role",
+              "value": "I keep score for local chess matches",
+              "category": "other"
+            },
+            "expiresAt": null
+          },
+          {
+            "candidate": {
+              "key": "adult_coaching_role",
+              "value": "I coach adults",
+              "evidence": "If I ever take up coaching, I would work with adults",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "adult_coaching_role",
+              "value": "I coach adults",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        },
+        {
+          "reject": true,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "The present scorekeeping role is supported. A possible future coaching role is not a current fact."
+    },
+    {
+      "id": "next-core-memory-09",
+      "language": "it",
+      "group": "duplicate",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Quando affronto un brano nuovo, segno prima soltanto i cambi di tempo.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "new_piece_tempo_annotation",
+              "value": "Quando affronto un brano nuovo, segno prima soltanto i cambi di tempo",
+              "evidence": "Quando affronto un brano nuovo, segno prima soltanto i cambi di tempo",
+              "category": "preference",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "new_piece_tempo_annotation",
+              "value": "Quando affronto un brano nuovo, segno prima soltanto i cambi di tempo",
+              "category": "preference"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": [
+          {
+            "id": "nm09",
+            "key": "new_music_tempo_marking",
+            "content": "Quando affronto un brano nuovo, segno prima soltanto i cambi di tempo",
+            "category": "preference",
+            "sensitivity": "LOW",
+            "observedAt": "2026-09-01T12:00:00.000Z",
+            "updatedAt": "2026-09-01T12:00:00.000Z",
+            "expiresAt": null
+          }
+        ]
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false,
+          "match": {
+            "kind": "equivalent",
+            "factId": "nm09"
+          }
+        }
+      ],
+      "rationale": "The existing and candidate facts include the same condition and the same limited first action."
+    },
+    {
+      "id": "next-core-memory-10",
+      "language": "en",
+      "group": "duplicate",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "My aunt Uma checks the microphones on the first Thursday of each month.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "monthly_microphone_check",
+              "value": "Uma checks the microphones on the first Thursday of each month",
+              "evidence": "My aunt Uma checks the microphones on the first Thursday of each month",
+              "category": "schedule",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "REFERENCED_PERSON",
+              "subjectName": "Uma",
+              "subjectRelationship": "aunt"
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "person_uma_monthly_microphone_check",
+              "value": "Uma (aunt): Uma checks the microphones on the first Thursday of each month",
+              "category": "schedule"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": [
+          {
+            "id": "nm10",
+            "key": "person_uma_microphone_check_schedule",
+            "content": "Uma (aunt): Uma checks the microphones on the first Thursday of each month",
+            "category": "schedule",
+            "sensitivity": "LOW",
+            "observedAt": "2026-09-01T12:00:00.000Z",
+            "updatedAt": "2026-09-01T12:00:00.000Z",
+            "expiresAt": null
+          }
+        ]
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false,
+          "match": {
+            "kind": "equivalent",
+            "factId": "nm10"
+          }
+        }
+      ],
+      "rationale": "The named aunt, action and calendar rule match exactly; the unprefixed candidate key is distinct from its canonical person key."
+    },
+    {
+      "id": "next-core-memory-11",
+      "language": "it",
+      "group": "correction",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Rettifico il numero dei componenti della mia squadra di dibattito: siamo cinque, non sei.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "debate_team_size",
+              "value": "La mia squadra di dibattito ha cinque componenti",
+              "evidence": "Rettifico il numero dei componenti della mia squadra di dibattito: siamo cinque, non sei",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "debate_team_size",
+              "value": "La mia squadra di dibattito ha cinque componenti",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": [
+          {
+            "id": "nm11",
+            "key": "debate_team_size",
+            "content": "La mia squadra di dibattito ha sei componenti",
+            "category": "other",
+            "sensitivity": "LOW",
+            "observedAt": "2026-09-01T12:00:00.000Z",
+            "updatedAt": "2026-09-01T12:00:00.000Z",
+            "expiresAt": null
+          }
+        ]
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false,
+          "match": {
+            "kind": "correction",
+            "factId": "nm11"
+          }
+        }
+      ],
+      "rationale": "The user explicitly replaces the same team-size fact with a different count."
+    },
+    {
+      "id": "next-core-memory-12",
+      "language": "en",
+      "group": "correction",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Update my mentor Hugo’s instrument: he now plays the clarinet, no longer the saxophone.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "stage_instrument",
+              "value": "Hugo now plays the clarinet",
+              "evidence": "Update my mentor Hugo’s instrument: he now plays the clarinet, no longer the saxophone",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "REFERENCED_PERSON",
+              "subjectName": "Hugo",
+              "subjectRelationship": "mentor"
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "person_hugo_stage_instrument",
+              "value": "Hugo (mentor): Hugo now plays the clarinet",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": [
+          {
+            "id": "nm12",
+            "key": "person_hugo_stage_instrument",
+            "content": "Hugo (mentor): Hugo plays the saxophone",
+            "category": "other",
+            "sensitivity": "LOW",
+            "observedAt": "2026-09-01T12:00:00.000Z",
+            "updatedAt": "2026-09-01T12:00:00.000Z",
+            "expiresAt": null
+          }
+        ]
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false,
+          "match": {
+            "kind": "correction",
+            "factId": "nm12"
+          }
+        }
+      ],
+      "rationale": "The explicit update refers to the same named mentor and instrument fact, so it may target that stored record."
+    },
+    {
+      "id": "next-core-memory-13",
+      "language": "it",
+      "group": "sensitive",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Nel certificato che mi è stato consegnato c’è scritto: «Diagnosi confermata: celiachia». Il certificato è il mio.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "confirmed_coeliac_diagnosis",
+              "value": "Ho una diagnosi confermata di celiachia",
+              "evidence": "Nel certificato che mi è stato consegnato c’è scritto: «Diagnosi confermata: celiachia». Il certificato è il mio",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "confirmed_coeliac_diagnosis",
+              "value": "Ho una diagnosi confermata di celiachia",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": true
+        }
+      ],
+      "rationale": "The user explicitly identifies the quoted medical certificate as their own. The supported health fact requires approval despite LOW extraction metadata."
+    },
+    {
+      "id": "next-core-memory-14",
+      "language": "en",
+      "group": "sensitive",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "My treatment plan prescribes physiotherapy for my spinal injury.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "prescribed_physiotherapy",
+              "value": "My treatment plan prescribes physiotherapy for my spinal injury",
+              "evidence": "My treatment plan prescribes physiotherapy for my spinal injury",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "DURABLE",
+              "expiry": null,
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "prescribed_physiotherapy",
+              "value": "My treatment plan prescribes physiotherapy for my spinal injury",
+              "category": "other"
+            },
+            "expiresAt": null
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": true
+        }
+      ],
+      "rationale": "This is supported health and treatment information, so storage requires sensitive-memory approval."
+    },
+    {
+      "id": "next-core-memory-15",
+      "language": "it",
+      "group": "temporary",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "Sono il segretario provvisorio del circolo fino al 31 maggio 2027.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "acting_club_secretary_term",
+              "value": "Sono il segretario provvisorio del circolo fino al 31 maggio 2027",
+              "evidence": "Sono il segretario provvisorio del circolo fino al 31 maggio 2027",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "TEMPORARY",
+              "expiry": {
+                "expression": "31 maggio 2027",
+                "timeZone": null
+              },
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "acting_club_secretary_term",
+              "value": "Sono il segretario provvisorio del circolo fino al 31 maggio 2027",
+              "category": "other"
+            },
+            "expiresAt": "2027-06-01T00:00:00.000Z"
+          }
+        ],
+        "existingFacts": []
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "The provisional role has an explicit future end date that agrees with the temporary-memory metadata.",
+      "expiryTimeZone": "UTC"
+    },
+    {
+      "id": "next-core-memory-16",
+      "language": "en",
+      "group": "temporary",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "userText": "I will coordinate the community exhibition for its 2028 season, ending on 30 June 2028.",
+        "observedAt": "2026-09-20T12:00:00.000Z",
+        "candidates": [
+          {
+            "candidate": {
+              "key": "community_exhibition_2028_role",
+              "value": "I will coordinate the community exhibition for its 2028 season, ending on 30 June 2028",
+              "evidence": "I will coordinate the community exhibition for its 2028 season, ending on 30 June 2028",
+              "category": "other",
+              "confidence": 0.99,
+              "sensitivity": "LOW",
+              "origin": "EXPLICIT",
+              "explicitSetting": false,
+              "durability": "TEMPORARY",
+              "expiry": {
+                "expression": "30 June 2028",
+                "timeZone": null
+              },
+              "subject": "ACCOUNT_HOLDER",
+              "subjectName": null,
+              "subjectRelationship": null
+            },
+            "canonical": {
+              "destination": "memory",
+              "key": "community_exhibition_2028_role",
+              "value": "I will coordinate the community exhibition for its 2028 season, ending on 30 June 2028",
+              "category": "other"
+            },
+            "expiresAt": "2028-07-01T00:00:00.000Z"
+          }
+        ],
+        "existingFacts": [
+          {
+            "id": "nm16",
+            "key": "community_exhibition_2026_role",
+            "content": "I coordinated the community exhibition for its 2026 season, ending on 30 June 2026",
+            "category": "other",
+            "sensitivity": "LOW",
+            "observedAt": "2026-01-15T12:00:00.000Z",
+            "updatedAt": "2026-01-15T12:00:00.000Z",
+            "expiresAt": "2026-06-30T23:59:59.000Z"
+          }
+        ]
+      },
+      "expected": [
+        {
+          "reject": false,
+          "requiresApproval": false
+        }
+      ],
+      "rationale": "The expired earlier edition is not an active duplicate or correction target for the separately identified future season.",
+      "expiryTimeZone": "UTC"
+    }
+  ],
+  "planningCases": [
+    {
+      "id": "next-core-planning-01",
+      "language": "it",
+      "pairId": "next-core-plan-pair-1",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Fra le due alternative che mi avevi indicato per impostare la lezione, preferisco la seconda: aiutami a renderla più concreta.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Al laboratorio parteciperanno dieci persone."
+          },
+          {
+            "role": "assistant",
+            "content": "Quale parte della preparazione vuoi definire?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "The request chooses the second item from a specific pair of suggested alternatives. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-02",
+      "language": "it",
+      "pairId": "next-core-plan-pair-1",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Fra le due alternative che mi avevi indicato per impostare la lezione, preferisco la seconda: aiutami a renderla più concreta.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Come potrei impostare la lezione di disegno?"
+          },
+          {
+            "role": "assistant",
+            "content": "Hai due alternative: iniziare spiegando tre regole, oppure iniziare mostrando un disegno incompleto e chiedendo al gruppo di completarlo."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "The request chooses the second item from a specific pair of suggested alternatives. The recent window contains the required referent completely."
+    },
+    {
+      "id": "next-core-planning-03",
+      "language": "en",
+      "pairId": "next-core-plan-pair-2",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "I want to use the shorter of the two openings you proposed for the radio bulletin. Which words could I cut from it?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "The radio bulletin will last four minutes."
+          },
+          {
+            "role": "assistant",
+            "content": "Which part of the script would you like to edit?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "The user requests an edit to one exact proposed opening, identified comparatively. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-04",
+      "language": "en",
+      "pairId": "next-core-plan-pair-2",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "I want to use the shorter of the two openings you proposed for the radio bulletin. Which words could I cut from it?",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Give me two possible openings for the radio bulletin."
+          },
+          {
+            "role": "assistant",
+            "content": "One opening is: \"Good morning, and welcome to our detailed look at the local events taking place this week.\" A shorter opening is: \"Good morning. Here are this week’s local events.\""
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "The user requests an edit to one exact proposed opening, identified comparatively. The recent window contains the required referent completely."
+    },
+    {
+      "id": "next-core-planning-05",
+      "language": "it",
+      "pairId": "next-core-plan-pair-3",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Mi convince il criterio che hai usato per ordinare quei compiti, ma non saprei applicarlo al prossimo laboratorio.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Il prossimo laboratorio durerà due ore."
+          },
+          {
+            "role": "assistant",
+            "content": "Quale aspetto dell’organizzazione vuoi discutere?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "The referent is the rationale for an earlier ordering decision, not merely the task names. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-06",
+      "language": "it",
+      "pairId": "next-core-plan-pair-3",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Mi convince il criterio che hai usato per ordinare quei compiti, ma non saprei applicarlo al prossimo laboratorio.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Come ordineresti la preparazione dei cartelloni del laboratorio?"
+          },
+          {
+            "role": "assistant",
+            "content": "Prima scrivi i testi, poi taglia i cartoncini e infine incolla i testi. Il criterio è completare prima ciò da cui dipende il lavoro successivo."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "The referent is the rationale for an earlier ordering decision, not merely the task names. The recent window contains the required referent completely."
+    },
+    {
+      "id": "next-core-planning-07",
+      "language": "en",
+      "pairId": "next-core-plan-pair-4",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "That example with the paper bridge helped me understand your point, but I cannot connect it to leading my design review.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "I will lead the design review with four colleagues."
+          },
+          {
+            "role": "assistant",
+            "content": "What part of the preparation would you like to clarify?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "The user refers to the lesson of a particular example. Knowing only the example’s object is insufficient to identify the intended point. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-08",
+      "language": "en",
+      "pairId": "next-core-plan-pair-4",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "That example with the paper bridge helped me understand your point, but I cannot connect it to leading my design review.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Can you give me an example of testing an assumption?"
+          },
+          {
+            "role": "assistant",
+            "content": "Imagine a paper bridge that you expect to hold a coin. Place one coin on it and observe what happens. The point is to test one assumption with a small observation before making a larger decision."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "The user refers to the lesson of a particular example. Knowing only the example’s object is insufficient to identify the intended point. The recent window contains the required referent completely."
+    },
+    {
+      "id": "next-core-planning-09",
+      "language": "it",
+      "pairId": "next-core-plan-pair-5",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Vorrei mantenere la frase iniziale che mi avevi proposto per il laboratorio di scrittura, cambiando soltanto l’ultima parte.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Ho preparato la sala per il laboratorio di scrittura."
+          },
+          {
+            "role": "assistant",
+            "content": "Quale dettaglio vuoi rivedere?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "A requested partial rewrite depends on the exact previously suggested sentence. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-10",
+      "language": "it",
+      "pairId": "next-core-plan-pair-5",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Vorrei mantenere la frase iniziale che mi avevi proposto per il laboratorio di scrittura, cambiando soltanto l’ultima parte.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Con quale frase potrei aprire il laboratorio di scrittura?"
+          },
+          {
+            "role": "assistant",
+            "content": "Potresti dire: «Oggi scriveremo una scena breve e proveremo due modi diversi per concluderla»."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "A requested partial rewrite depends on the exact previously suggested sentence. The recent window contains the required referent completely."
+    },
+    {
+      "id": "next-core-planning-11",
+      "language": "en",
+      "pairId": "next-core-plan-pair-6",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Your checklist for reviewing a chess puzzle has too many entries for my five-minute practice slot. Help me shorten that specific checklist.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "I can set aside five minutes for each chess puzzle."
+          },
+          {
+            "role": "assistant",
+            "content": "Which part of the practice routine would you like to simplify?"
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": true,
+        "allowCrossChannel": false,
+        "rawChoice": "recall"
+      },
+      "rationale": "The user asks to shorten a specific checklist whose entries are necessary to answer. The required referent is absent from the supplied recent window."
+    },
+    {
+      "id": "next-core-planning-12",
+      "language": "en",
+      "pairId": "next-core-plan-pair-6",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "decision": {
+          "mode": "active",
+          "reason": "synthetic_fresh_next_core"
+        },
+        "message": "Your checklist for reviewing a chess puzzle has too many entries for my five-minute practice slot. Help me shorten that specific checklist.",
+        "recentMessages": [
+          {
+            "role": "user",
+            "content": "Give me a checklist for reviewing a chess puzzle."
+          },
+          {
+            "role": "assistant",
+            "content": "Use this checklist: identify the threat, list two candidate moves, examine the opponent’s reply, compare the resulting positions and write one lesson from the puzzle."
+          }
+        ],
+        "plan": {
+          "facts": {
+            "enabled": true,
+            "limit": 8,
+            "deadlineMs": 100
+          },
+          "conversations": {
+            "enabled": false,
+            "initialScope": "current_thread",
+            "allowCrossChannel": false,
+            "limit": 4,
+            "currentDeadlineMs": 100,
+            "globalDeadlineMs": 250
+          },
+          "reasonCodes": ["coaching_personalization"]
+        }
+      },
+      "expected": {
+        "conversationsEnabled": false,
+        "allowCrossChannel": false,
+        "rawChoice": "self_contained"
+      },
+      "rationale": "The user asks to shorten a specific checklist whose entries are necessary to answer. The recent window contains the required referent completely."
+    }
+  ],
+  "rankingCases": [
+    {
+      "id": "next-core-ranking-01",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Che cosa ha aiutato me a tollerare una pausa mentre gli altri mi osservano? Considera la mia esperienza al lavoro e anche negli altri contesti, senza attribuirmi esperienze di altre persone.",
+        "source": "memory",
+        "items": [
+          {
+            "id": "nkr01a",
+            "text": "Persona: titolare dell’account. Formazione al lavoro: fare una breve pausa dopo la domanda gli ha permesso di ascoltare meglio la risposta del gruppo."
+          },
+          {
+            "id": "nkr01b",
+            "text": "Persona: titolare dell’account. Sport: durante la preparazione di un tiro libero, guardare un punto fermo gli ha reso più tollerabile il silenzio degli spettatori."
+          },
+          {
+            "id": "nkr01c",
+            "text": "Persona: collega del titolare, Iris. Formazione al lavoro: Iris si sente più sicura quando riempie tutte le pause parlando."
+          },
+          {
+            "id": "nkr01d",
+            "text": "Persona: titolare dell’account. Logistica del lavoro: ha spostato la pausa pranzo dalle 12 alle 13 per coincidere con l’orario della mensa."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr01a", "nkr01b"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The user explicitly permits transfer across their own performance contexts. A lunch break shares the word pause but provides no evidence about being observed.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_1",
+          "frozenLabel": "relevant",
+          "acceptableAlternativeLabels": ["uncertain"],
+          "requiredRetention": true,
+          "rationale": "The sport example may need interpretation before transfer to teaching, but the user explicitly requested experience from other contexts. It should remain available."
+        }
+      ]
+    },
+    {
+      "id": "next-core-ranking-02",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "I am helping my cousin Sol prepare a short choir demonstration. What do you know about what helps Sol speak to an audience, including other public performances?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "nkr02a",
+            "text": "Person: account holder’s cousin, Sol. Choir demonstration: Sol finds the first spoken sentence easier after rehearsing it once with the accompanist."
+          },
+          {
+            "id": "nkr02b",
+            "text": "Person: account holder. Work: the account holder prefers to introduce a demonstration with a slide full of statistics."
+          },
+          {
+            "id": "nkr02c",
+            "text": "Person: account holder’s cousin, Sol. Poetry reading: Sol found it easier to address the audience after naming one person at the back of the room as the direction to face."
+          },
+          {
+            "id": "nkr02d",
+            "text": "Person: account holder’s cousin, Nell. Choir: Nell likes to ask the audience a question at the beginning of her demonstrations."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr02a", "nkr02c"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "relevant",
+          "candidate_3": "irrelevant"
+        }
+      },
+      "rationale": "The requested person is Sol, and the user explicitly includes Sol’s other public performances. Similar advice attributed to a different person is not evidence about Sol.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_2",
+          "frozenLabel": "relevant",
+          "acceptableAlternativeLabels": ["uncertain"],
+          "requiredRetention": true,
+          "rationale": "Transfer from a poetry reading to a choir demonstration may be tentative, but this is still the requested person’s experience and should be retained."
+        }
+      ]
+    },
+    {
+      "id": "next-core-ranking-03",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Come posso dare un feedback preciso dopo una prova, descrivendo ciò che ho osservato senza inventare le intenzioni della persona?",
+        "source": "document",
+        "items": [
+          {
+            "id": "nkr03a",
+            "text": "Guida alla formazione: separa il comportamento osservabile dall’interpretazione. Descrivi l’azione concreta, poi chiedi alla persona come l’ha vissuta invece di attribuirle una motivazione."
+          },
+          {
+            "id": "nkr03b",
+            "text": "Esempio da un laboratorio di scrittura: sostituisci «hai scritto in fretta perché non ti interessa» con «in questo paragrafo mancano due passaggi; quale scelta stavi cercando di fare?»."
+          },
+          {
+            "id": "nkr03c",
+            "text": "Appunto di elettronica: un circuito di feedback negativo riduce l’errore fra il segnale di riferimento e l’uscita del sistema."
+          },
+          {
+            "id": "nkr03d",
+            "text": "Frammento di dispensa: «Dopo la prova evita di confondere quello che hai visto con…». Il resto della frase e gli esempi successivi non sono disponibili."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr03a", "nkr03b", "nkr03d"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "uncertain"
+        }
+      },
+      "rationale": "The writing example expresses the same observation-versus-intention principle even though it comes from another activity. Electronic feedback is a different sense of the term.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_3",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The incomplete fragment appears aligned with the request but its missing continuation prevents a firm statement of the advice. Retain it under either label."
+        }
+      ]
+    },
+    {
+      "id": "next-core-ranking-04",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "I need to explain a new cooperative board game to beginners. Which retrieved guidance helps me decide the order of the explanation?",
+        "source": "document",
+        "items": [
+          {
+            "id": "nkr04a",
+            "text": "This facilitator note covers the explanation order for introducing a new cooperative board game. The event uses four tables, each with one copy of the same game. Participants arrive with different experience levels, so each table has a printed card that repeats the same few rules. The organizer reserves the first part of the session for introductions and asks the helpers to leave technical exceptions until a participant encounters one. Helpers collect coats away from the tables, place unused pieces in a tray and leave a clear area for the first demonstration. The materials list includes pencils, a timer, one score sheet per table, spare cards, labels for the boxes and a large card showing how a round ends. These logistical details are useful to the event staff but are not the rules explanation itself. During the briefing, helpers take turns reading the short opening aloud and checking whether a newcomer can identify the goal. Each helper then practices a sample turn with another helper watching silently. The observer writes down any word that requires a definition. The briefing ends with a reminder to keep the game’s final objective visible while participants make their first moves. The explanation itself should follow this order: first state the shared objective, then demonstrate one ordinary turn, then show the condition that ends the round. Ask one participant to describe what they would do on their first turn. Only then introduce an exception if it is relevant to the pieces currently on the table."
+          },
+          {
+            "id": "nkr04b",
+            "text": "Stockroom note: the order for thirty replacement game boxes was sent to the supplier. Delivery follows the purchase-order number, not the table number."
+          },
+          {
+            "id": "nkr04c",
+            "text": "Partial note: start with what everyone is trying to achieve, then show one… The remaining words, title and intended activity are missing from this excerpt."
+          },
+          {
+            "id": "nkr04d",
+            "text": "Teaching card for cooperative games: explain the common goal, walk through one typical turn and show how the group knows the round is over."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr04a", "nkr04d", "nkr04c"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "uncertain",
+          "candidate_3": "relevant"
+        }
+      },
+      "rationale": "The long coherent document contains both irrelevant logistics and directly useful explanation guidance. Shared words such as order and game do not make a purchase record useful.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_2",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The partial teaching fragment plausibly contains the same principle, but its activity and final instruction are absent. It should be retained."
+        }
+      ]
+    },
+    {
+      "id": "next-core-ranking-05",
+      "language": "it",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Per il laboratorio del 2027 voglio usare soltanto le mie preferenze attuali sul lavoro di gruppo. Che cosa sai al riguardo?",
+        "source": "memory",
+        "items": [
+          {
+            "id": "nkr05a",
+            "text": "Persona: titolare dell’account. Preferenza attuale dichiarata: nei laboratori vuole lavorare in coppia per poter confrontare subito i tentativi."
+          },
+          {
+            "id": "nkr05b",
+            "text": "Persona: titolare dell’account. Nota storica del 2024: preferiva lavorare da solo. Una nota successiva precisa che questa preferenza non è più attuale."
+          },
+          {
+            "id": "nkr05c",
+            "text": "Persona: collaboratrice del titolare, Amina. Amina preferisce lavorare in gruppi di quattro durante i laboratori."
+          },
+          {
+            "id": "nkr05d",
+            "text": "Persona: titolare dell’account. Estratto privo di data: preferisce discutere le bozze con una sola altra persona. Non è indicato se la preferenza sia ancora valida."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr05a", "nkr05d"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "irrelevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "uncertain"
+        }
+      },
+      "rationale": "A superseded historical preference and another person’s preference must not displace the current account-holder preference. An undated compatible preference needs cautious retention.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_3",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The undated preference is compatible with current pair work but lacks temporal evidence. Relevant and uncertain both justify retaining it."
+        }
+      ]
+    },
+    {
+      "id": "next-core-ranking-06",
+      "language": "en",
+      "input": {
+        "userId": "synthetic-jev-live-eval",
+        "query": "Help me prepare a two-minute demonstration for my bookbinding workshop, using the resources and preparation limits you know I have.",
+        "source": "memory",
+        "items": [
+          {
+            "id": "nkr06a",
+            "text": "Person: account holder. Bookbinding workshop: the account holder can use only scrap paper and a stapler for the demonstration."
+          },
+          {
+            "id": "nkr06b",
+            "text": "Person: account holder. Workshop preparation: the account holder has ten minutes to assemble the demonstration materials."
+          },
+          {
+            "id": "nkr06c",
+            "text": "Person: account holder. Personal reading: the account holder’s favourite novel has a blue cover and more than five hundred pages."
+          },
+          {
+            "id": "nkr06d",
+            "text": "Unattributed fragment from preparation notes: only paper is available and there is little setup time. The person and workshop are not identified in the retained excerpt."
+          }
+        ]
+      },
+      "expected": {
+        "retainedIds": ["nkr06a", "nkr06b", "nkr06d"],
+        "rawChoices": {
+          "candidate_0": "relevant",
+          "candidate_1": "relevant",
+          "candidate_2": "irrelevant",
+          "candidate_3": "uncertain"
+        }
+      },
+      "rationale": "Materials and time limits directly constrain the requested plan. A book preference shares the medium but does not constrain this demonstration.",
+      "ambiguity": [
+        {
+          "candidate": "candidate_3",
+          "frozenLabel": "uncertain",
+          "acceptableAlternativeLabels": ["relevant"],
+          "requiredRetention": true,
+          "rationale": "The fragment is compatible with the known resource limits but lacks attribution. Keep it rather than treating it as confirmed account-holder context."
+        }
+      ]
+    }
+  ],
+  "answerFixtures": [
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq01-imperative-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "La scelta è definitiva: all’esposizione del seminario porterò un poster.",
+        "assistantText": "Indica quale formato hai scelto per presentare il lavoro al seminario.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq01-imperative",
+      "role": "defect",
+      "rationale": "The imperative requests the presentation format already explicitly selected. An information request does not require a question mark.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "porterò un poster"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Indica quale formato hai scelto"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["imperative without question mark", "committed choice", "study"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq01-imperative-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "La scelta è definitiva: all’esposizione del seminario porterò un poster.",
+        "assistantText": "Indica quale passaggio del poster temi di spiegare meno chiaramente.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq01-imperative",
+      "role": "control",
+      "rationale": "The selected format does not identify the difficult passage. This imperative requests relevant new information.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "La scelta è definitiva: all’esposizione del seminario porterò un poster."
+        },
+        {
+          "source": "assistantText",
+          "quote": "quale passaggio del poster temi di spiegare meno chiaramente"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["imperative without question mark", "new information", "study"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq02-quoted-question-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Il gruppo del corso è composto da otto persone. Per un role-play, scrivi una battuta in cui il facilitatore chiede quanti partecipanti ci sono.",
+        "assistantText": "Prima di scrivere la battuta ti chiedo: quante persone compongono il gruppo?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq02-quoted-question",
+      "role": "defect",
+      "rationale": "The answer explicitly addresses a preliminary question to the user, repeating the supplied group size and postponing the feasible role-play line.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "otto persone"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Prima di scrivere la battuta ti chiedo"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["question recipient", "role-play", "unnecessary clarification"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq02-quoted-question-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Il gruppo del corso è composto da otto persone. Per un role-play, scrivi una battuta in cui il facilitatore chiede quanti partecipanti ci sono.",
+        "assistantText": "Battuta del facilitatore: «Quanti partecipanti ci sono nel gruppo?»",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq02-quoted-question",
+      "role": "control",
+      "rationale": "The question is explicitly a fictional facilitator’s requested line, not an information request addressed to the user.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "scrivi una battuta"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Battuta del facilitatore: «Quanti partecipanti ci sono nel gruppo?»"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["question inside quotation", "role-play", "N/A control"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq03-mixed-group-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Il grafico l’ho finito; le citazioni le recupero domani. Poi mostrerò entrambi alla relatrice.",
+        "assistantText": "Hai completato il grafico e quale fonte ti manca ancora?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq03-mixed-group",
+      "role": "defect",
+      "rationale": "The first part repeats the completed status of the graph. The second, unanswered part does not cancel that repetition.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Il grafico l’ho finito"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Hai completato il grafico"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["partial group repetition", "artifact status", "study"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq03-mixed-group-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Il grafico l’ho finito; le citazioni le recupero domani. Poi mostrerò entrambi alla relatrice.",
+        "assistantText": "Quale fonte ti manca ancora e quale punto vuoi discutere con la relatrice?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq03-mixed-group",
+      "role": "control",
+      "rationale": "Neither the missing source nor the planned discussion point is supplied. Both questions are new and related to the same next step.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Il grafico l’ho finito; le citazioni le recupero domani. Poi mostrerò entrambi alla relatrice."
+        },
+        {
+          "source": "assistantText",
+          "quote": "Quale fonte ti manca ancora e quale punto vuoi discutere"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["related group", "new information", "study"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq04-temporal-scope-defect",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Per questa settimana ho mantenuto esattamente la stessa fascia di prova della scorsa.",
+        "assistantText": "In quale fascia oraria puoi provare questa settimana?",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "La settimana scorsa il turno mi lasciava libero per provare dalle 16 alle 17."
+          },
+          {
+            "role": "assistant",
+            "content": "Quella era quindi la tua finestra di prova della settimana scorsa."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "flagged",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq04-temporal-scope",
+      "role": "defect",
+      "rationale": "The current user message explicitly carries the known 16–17 window into the current week, making the requested current value available.",
+      "evidence": [
+        {
+          "source": "transcript[0].content",
+          "quote": "dalle 16 alle 17"
+        },
+        {
+          "source": "userMessage",
+          "quote": "esattamente la stessa fascia di prova"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["temporal reference", "known current value", "performance"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-rq04-temporal-scope-control",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Questa settimana ho turni completamente diversi. Non abbiamo ancora definito le nuove finestre di prova.",
+        "assistantText": "In quale fascia oraria puoi provare questa settimana?",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "La settimana scorsa il turno mi lasciava libero per provare dalle 16 alle 17."
+          },
+          {
+            "role": "assistant",
+            "content": "Quella era quindi la tua finestra di prova della settimana scorsa."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "repeated_question",
+      "pairId": "rq04-temporal-scope",
+      "role": "control",
+      "rationale": "Last week’s window does not determine availability under this week’s different shifts. The user explicitly says the new windows have not been defined. The old statement remains true about last week; this is not a correction of that historical fact.",
+      "evidence": [
+        {
+          "source": "transcript[0].content",
+          "quote": "La settimana scorsa"
+        },
+        {
+          "source": "userMessage",
+          "quote": "turni completamente diversi"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Non abbiamo ancora definito le nuove finestre"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "changed circumstances",
+        "temporal scope",
+        "necessary clarification"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic01-retained-unit-defect",
+        "turnIndex": 3,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Nella registrazione noto soprattutto una partenza troppo rapida.",
+        "assistantText": "Hai preparato sette discorsi diversi; ora stai rivedendo la partenza di uno di loro.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Finora ho fatto sette prove del discorso."
+          },
+          {
+            "role": "assistant",
+            "content": "Quindi hai preparato sette discorsi diversi."
+          },
+          {
+            "role": "user",
+            "content": "No: sette prove dello stesso discorso, non sette discorsi."
+          },
+          {
+            "role": "assistant",
+            "content": "Ho capito la distinzione tra discorso e ripetizioni."
+          },
+          {
+            "role": "user",
+            "content": "L’ultima prova l’ho registrata."
+          },
+          {
+            "role": "assistant",
+            "content": "Puoi osservare come cominci nella registrazione."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic01-retained-unit",
+      "role": "defect",
+      "rationale": "A supplied earlier user correction explicitly distinguishes seven rehearsals of one talk from seven separate talks. Later discussion of a recording does not revoke it.",
+      "evidence": [
+        {
+          "source": "transcript[2].content",
+          "quote": "sette prove dello stesso discorso, non sette discorsi"
+        },
+        {
+          "source": "assistantText",
+          "quote": "sette discorsi diversi"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["longer history", "retained correction", "count versus unit"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic01-retained-unit-control",
+        "turnIndex": 3,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Nella registrazione noto soprattutto una partenza troppo rapida.",
+        "assistantText": "Le sette prove riguardano lo stesso discorso; nella registrazione noti una partenza troppo rapida.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Finora ho fatto sette prove del discorso."
+          },
+          {
+            "role": "assistant",
+            "content": "Quindi hai preparato sette discorsi diversi."
+          },
+          {
+            "role": "user",
+            "content": "No: sette prove dello stesso discorso, non sette discorsi."
+          },
+          {
+            "role": "assistant",
+            "content": "Ho capito la distinzione tra discorso e ripetizioni."
+          },
+          {
+            "role": "user",
+            "content": "L’ultima prova l’ho registrata."
+          },
+          {
+            "role": "assistant",
+            "content": "Puoi osservare come cominci nella registrazione."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic01-retained-unit",
+      "role": "control",
+      "rationale": "The answer preserves the corrected rehearsal/talk distinction and uses the current user’s observation about the recording.",
+      "evidence": [
+        {
+          "source": "transcript[2].content",
+          "quote": "sette prove dello stesso discorso"
+        },
+        {
+          "source": "userMessage",
+          "quote": "una partenza troppo rapida"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "longer history",
+        "correct semantic unit",
+        "supported observation"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic02-pronoun-defect",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Quando ho scritto «lei», intendevo Daria, non Claudia: Daria condurrà il workshop.",
+        "assistantText": "Claudia è la persona che condurrà il workshop.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Ho parlato con Daria e Claudia del workshop. Lei lo condurrà."
+          },
+          {
+            "role": "assistant",
+            "content": "Claudia condurrà quindi il workshop."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic02-pronoun",
+      "role": "defect",
+      "rationale": "The user resolves an earlier ambiguous pronoun to Daria; the answer retains the explicitly rejected referent.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "intendevo Daria, non Claudia"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Claudia è la persona"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["pronoun resolution", "wrong referenced person", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic02-pronoun-control",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Quando ho scritto «lei», intendevo Daria, non Claudia: Daria condurrà il workshop.",
+        "assistantText": "Daria è la persona che condurrà il workshop.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Ho parlato con Daria e Claudia del workshop. Lei lo condurrà."
+          },
+          {
+            "role": "assistant",
+            "content": "Claudia condurrà quindi il workshop."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic02-pronoun",
+      "role": "control",
+      "rationale": "The answer uses the explicitly corrected referent without inventing a role for Claudia.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Daria condurrà il workshop"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Daria è la persona"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["pronoun resolution", "referenced person", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic03-completed-decision-defect",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Aggiornamento: ho già accettato. Non devo più scegliere se farlo; scrivimi una frase per presentarmi al gruppo il primo giorno.",
+        "assistantText": "Facciamo una lista di motivi a favore e contro accettare il tirocinio.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Sto decidendo se accettare il tirocinio."
+          },
+          {
+            "role": "assistant",
+            "content": "Possiamo confrontare cosa ti offre e cosa richiede."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic03-completed-decision",
+      "role": "defect",
+      "rationale": "The user closes the acceptance decision and replaces it with a concrete first-day task. Returning to pros and cons acts against that update and omits the requested phrase.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "ho già accettato"
+        },
+        {
+          "source": "userMessage",
+          "quote": "scrivimi una frase per presentarmi"
+        },
+        {
+          "source": "assistantText",
+          "quote": "a favore e contro accettare"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "completed task state",
+        "task correction",
+        "new concrete request"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic03-completed-decision-control",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Aggiornamento: ho già accettato. Non devo più scegliere se farlo; scrivimi una frase per presentarmi al gruppo il primo giorno.",
+        "assistantText": "Puoi dire: «Ciao a tutti, sono felice di iniziare: mi piacerebbe capire come posso rendermi utile al gruppo.»",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Sto decidendo se accettare il tirocinio."
+          },
+          {
+            "role": "assistant",
+            "content": "Possiamo confrontare cosa ti offre e cosa richiede."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic03-completed-decision",
+      "role": "control",
+      "rationale": "The answer proceeds with the requested first-day wording and does not reopen the completed acceptance decision. The drafted line is suggested speech, not a biographical assertion.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "scrivimi una frase per presentarmi al gruppo"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Puoi dire: «Ciao a tutti"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "completed task state",
+        "requested draft",
+        "no personal assertion"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic04-certainty-defect",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Ti rettifico: ho detto che potrei essere selezionato, non che mi abbiano selezionato. Non c’è nessuna conferma.",
+        "assistantText": "Sei già stato selezionato per la residenza artistica.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Potrei essere selezionato per la residenza artistica."
+          },
+          {
+            "role": "assistant",
+            "content": "Ora che sei stato selezionato puoi preparare l’arrivo."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "flagged",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic04-certainty",
+      "role": "defect",
+      "rationale": "The answer converts a possibility into an established outcome after the user explicitly corrected that exact certainty error.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "potrei essere selezionato, non che mi abbiano selezionato"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Sei già stato selezionato"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "epistemic correction",
+        "possibility versus outcome",
+        "performance"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ic04-certainty-control",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Ti rettifico: ho detto che potrei essere selezionato, non che mi abbiano selezionato. Non c’è nessuna conferma.",
+        "assistantText": "Non hai ancora una conferma della selezione per la residenza artistica.",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Potrei essere selezionato per la residenza artistica."
+          },
+          {
+            "role": "assistant",
+            "content": "Ora che sei stato selezionato puoi preparare l’arrivo."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "clear",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "ignored_correction",
+      "pairId": "ic04-certainty",
+      "role": "control",
+      "rationale": "The answer preserves the stated lack of confirmation without claiming either final selection or final rejection.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Non c’è nessuna conferma"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Non hai ancora una conferma"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["epistemic correction", "supported uncertainty", "performance"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf01-roleplay-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Stiamo simulando un colloquio. Nel ruolo inventato coordino un team di dieci persone; nella realtà non ho mai gestito un team.",
+        "assistantText": "Nel tuo ultimo incarico coordinavi un team di dieci persone.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf01-roleplay",
+      "role": "defect",
+      "rationale": "The answer asserts an actual past job experience that belongs only to the explicitly invented role and contradicts the stated real history.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Nel ruolo inventato"
+        },
+        {
+          "source": "userMessage",
+          "quote": "nella realtà non ho mai gestito un team"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Nel tuo ultimo incarico"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["hypothetical versus actual", "role-play framing", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf01-roleplay-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Stiamo simulando un colloquio. Nel ruolo inventato coordino un team di dieci persone; nella realtà non ho mai gestito un team.",
+        "assistantText": "Nel ruolo inventato: «Coordino un team di dieci persone».",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf01-roleplay",
+      "role": "control",
+      "rationale": "The fictional role is explicitly preserved in the answer itself. The first-person quoted sentence does not assert an actual account-holder experience.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Nel ruolo inventato coordino un team di dieci persone"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Nel ruolo inventato:"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "hypothetical versus actual",
+        "first-person quoted content",
+        "N/A control"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf02-invented-percentage-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Rispetto al mese scorso, prendo appunti più spesso durante le riunioni. Non ho misurato quanto spesso né dato dei conteggi.",
+        "assistantText": "Prendi appunti nell’80% delle riunioni.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf02-invented-percentage",
+      "role": "defect",
+      "rationale": "An increase in frequency does not establish an exact 80% rate. The full supplied evidence contains no counts from which that personal statistic could be derived.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "più spesso"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Non ho misurato quanto spesso né dato dei conteggi"
+        },
+        {
+          "source": "assistantText",
+          "quote": "nell’80%"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "unsupported number",
+        "qualitative versus quantitative evidence",
+        "work"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf02-invented-percentage-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Rispetto al mese scorso, prendo appunti più spesso durante le riunioni. Non ho misurato quanto spesso né dato dei conteggi.",
+        "assistantText": "Prendi appunti più spesso rispetto al mese scorso.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf02-invented-percentage",
+      "role": "control",
+      "rationale": "The answer preserves the stated qualitative change without inventing a magnitude.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Rispetto al mese scorso, prendo appunti più spesso"
+        },
+        {
+          "source": "assistantText",
+          "quote": "più spesso rispetto al mese scorso"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["supported qualitative fact", "no invented precision", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf03-attributed-quote-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Da un messaggio reale di mio fratello Tom: «Mi aiuta leggere la prima frase prima di entrare». Io non l’ho mai provato.",
+        "assistantText": "Leggere la prima frase prima di entrare ti è già stato utile.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf03-attributed-quote",
+      "role": "defect",
+      "rationale": "The benefit is reported by Tom about himself. The answer transfers it to the account holder, who explicitly says they have never tried it.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "mio fratello Tom"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Io non l’ho mai provato"
+        },
+        {
+          "source": "assistantText",
+          "quote": "ti è già stato utile"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "real attributed quotation",
+        "wrong subject",
+        "reported experience"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf03-attributed-quote-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Da un messaggio reale di mio fratello Tom: «Mi aiuta leggere la prima frase prima di entrare». Io non l’ho mai provato.",
+        "assistantText": "Tom ti ha riferito che leggere la prima frase prima di entrare lo aiuta.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "clear",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf03-attributed-quote",
+      "role": "control",
+      "rationale": "A quotation reported as a real message supplies evidence about its named speaker. The answer preserves that attribution instead of treating every quotation as fiction.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Da un messaggio reale di mio fratello Tom"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Mi aiuta leggere la prima frase prima di entrare"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Tom ti ha riferito"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "real attributed quotation",
+        "supported referenced-person fact",
+        "quotation heuristic counterexample"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf04-omitted-context-defect",
+        "turnIndex": 6,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "La prova di oggi si è svolta online: io ero collegato dalla cucina di casa.",
+        "assistantText": "Alla prova di oggi eri nella stessa aula della commissione, in presenza.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": false,
+        "personalContextComplete": false,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "flagged",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf04-omitted-context",
+      "role": "defect",
+      "rationale": "The answer contradicts the current positive evidence about online attendance from home. Other missing context cannot make that statement supported for the same event.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "online"
+        },
+        {
+          "source": "userMessage",
+          "quote": "collegato dalla cucina di casa"
+        },
+        {
+          "source": "assistantText",
+          "quote": "nella stessa aula della commissione, in presenza"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["incomplete history", "positive contradiction", "performance"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-pf04-omitted-context-control",
+        "turnIndex": 6,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "La prova di oggi si è svolta online: io ero collegato dalla cucina di casa.",
+        "assistantText": "Alla prova di oggi la commissione ti ha chiesto di presentare il portfolio.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": false,
+        "personalContextComplete": false,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "uncertain",
+        "unaddressed_request": "not_applicable"
+      },
+      "targetCheck": "unsupported_personal_fact",
+      "pairId": "pf04-omitted-context",
+      "role": "control",
+      "rationale": "The visible message establishes only how the user attended. The question asked by the commission could be in omitted context, so its support or invention cannot be established.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "La prova di oggi si è svolta online: io ero collegato dalla cucina di casa."
+        },
+        {
+          "source": "personalContextComplete",
+          "quote": false
+        },
+        {
+          "source": "assistantText",
+          "quote": "ti ha chiesto di presentare il portfolio"
+        }
+      ],
+      "ambiguity": {
+        "check": "unsupported_personal_fact",
+        "kind": "missing_evidence",
+        "acceptableAlternatives": ["uncertain"],
+        "reason": "The content of the commission’s request is absent from the visible evidence and may occur in omitted context.",
+        "scoring": "Expected uncertainty control; exclude from binary defect accuracy and score abstention separately."
+      },
+      "tags": [
+        "incomplete history",
+        "missing personal evidence",
+        "expected uncertainty"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur01-indirect-referential-defect",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Si potrebbe avere qui una versione più breve di quel messaggio, pronta da incollare?",
+        "assistantText": "Come ti fa sentire dover chiedere al responsabile di scegliere le priorità?",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Vorrei inviare al responsabile questo messaggio: «Buongiorno, ti scrivo perché avrei bisogno di verificare insieme quali siano le priorità da affrontare prima della riunione di venerdì, dato che sono arrivate più richieste contemporaneamente». "
+          },
+          {
+            "role": "assistant",
+            "content": "Il messaggio chiede di concordare le priorità prima della riunione."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur01-indirect-referential",
+      "role": "defect",
+      "rationale": "The polite question requests a concrete shorter version of text already supplied. Discovering an emotion is unnecessary to deliver the edit.",
+      "evidence": [
+        {
+          "source": "transcript[0].content",
+          "quote": "Vorrei inviare al responsabile questo messaggio"
+        },
+        {
+          "source": "userMessage",
+          "quote": "una versione più breve di quel messaggio, pronta da incollare"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Come ti fa sentire"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "indirect concrete ask",
+        "referential request",
+        "unnecessary discovery"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur01-indirect-referential-control",
+        "turnIndex": 1,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Si potrebbe avere qui una versione più breve di quel messaggio, pronta da incollare?",
+        "assistantText": "«Buongiorno, possiamo concordare le priorità prima della riunione di venerdì?»",
+        "transcript": [
+          {
+            "role": "user",
+            "content": "Vorrei inviare al responsabile questo messaggio: «Buongiorno, ti scrivo perché avrei bisogno di verificare insieme quali siano le priorità da affrontare prima della riunione di venerdì, dato che sono arrivate più richieste contemporaneamente». "
+          },
+          {
+            "role": "assistant",
+            "content": "Il messaggio chiede di concordare le priorità prima della riunione."
+          }
+        ],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur01-indirect-referential",
+      "role": "control",
+      "rationale": "The response supplies the requested shorter message. Its quoted question addresses the intended recipient, not the user.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "pronta da incollare"
+        },
+        {
+          "source": "assistantText",
+          "quote": "«Buongiorno, possiamo concordare le priorità"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "indirect concrete ask",
+        "ready-to-use draft",
+        "question inside quoted content"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur02-independent-steps-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Per la simulazione del colloquio fai entrambe le cose: rendi più chiara la risposta «Ho sistemato le attività del gruppo e siamo riusciti a finire»; poi fammi una domanda sul criterio con cui avevamo deciso le priorità.",
+        "assistantText": "«Ho riordinato le attività del gruppo, contribuendo a completare il lavoro».",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur02-independent-steps",
+      "role": "defect",
+      "rationale": "The response completes the rewrite but omits the independently requested practice question. Finishing the first step does not satisfy both.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "fai entrambe le cose"
+        },
+        {
+          "source": "userMessage",
+          "quote": "poi fammi una domanda sul criterio"
+        },
+        {
+          "source": "assistantText",
+          "quote": "«Ho riordinato le attività del gruppo"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "independent deliverables",
+        "rewrite plus interaction",
+        "partial completion"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur02-independent-steps-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Per la simulazione del colloquio fai entrambe le cose: rendi più chiara la risposta «Ho sistemato le attività del gruppo e siamo riusciti a finire»; poi fammi una domanda sul criterio con cui avevamo deciso le priorità.",
+        "assistantText": "«Ho riordinato le attività del gruppo, contribuendo a completare il lavoro».\nCon quale criterio avevate deciso quali attività affrontare per prime?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur02-independent-steps",
+      "role": "control",
+      "rationale": "The response supplies the rewrite and asks the requested follow-up. The criterion has not been supplied, so the question is new.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "poi fammi una domanda sul criterio"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Con quale criterio avevate deciso"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "independent deliverables",
+        "requested new question",
+        "complete task"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur03-missing-input-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Mi prepari una risposta di due righe all’email che ho ricevuto dal coordinatore? Non ti ho ancora mostrato il messaggio né detto che cosa chiede.",
+        "assistantText": "Prima dell’invio, chiudi gli occhi e immagina di affrontare bene il confronto.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur03-missing-input",
+      "role": "defect",
+      "rationale": "The response neither obtains the missing email content nor drafts the reply. An exercise replaces the requested task instead of making the necessary clarification.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "una risposta di due righe"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Non ti ho ancora mostrato il messaggio né detto che cosa chiede"
+        },
+        {
+          "source": "assistantText",
+          "quote": "chiudi gli occhi e immagina"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["essential missing input", "task replaced by exercise", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur03-missing-input-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Mi prepari una risposta di due righe all’email che ho ricevuto dal coordinatore? Non ti ho ancora mostrato il messaggio né detto che cosa chiede.",
+        "assistantText": "Puoi incollare il testo dell’email, così posso rispondere alla richiesta effettiva?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur03-missing-input",
+      "role": "control",
+      "rationale": "The original email is essential to an appropriate reply and is explicitly unavailable in the current evidence. Asking for it is necessary clarification, not avoidable discovery.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Non ti ho ancora mostrato il messaggio né detto che cosa chiede"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Puoi incollare il testo dell’email"
+        }
+      ],
+      "ambiguity": null,
+      "tags": ["essential missing input", "necessary clarification", "work"],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur04-direct-concept-defect",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Che differenza c’è, come obiettivo, tra «vincere» e «seguire la mia routine»? Spiegamela in una frase.",
+        "assistantText": "Quale sport pratichi e da quanto tempo?",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "clear",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "flagged"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur04-direct-concept",
+      "role": "defect",
+      "rationale": "The user requests a general conceptual distinction that can be explained without identifying their sport or experience. Discovery postpones a feasible direct answer.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "Che differenza c’è, come obiettivo"
+        },
+        {
+          "source": "userMessage",
+          "quote": "Spiegamela in una frase"
+        },
+        {
+          "source": "assistantText",
+          "quote": "Quale sport pratichi e da quanto tempo"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "direct conceptual request",
+        "unnecessary personalization",
+        "sport"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    },
+    {
+      "turn": {
+        "scenarioId": "fresh-next-ur04-direct-concept-control",
+        "turnIndex": 0,
+        "sampleId": "fresh-next",
+        "modelId": "synthetic-author-fresh-next",
+        "userMessage": "Che differenza c’è, come obiettivo, tra «vincere» e «seguire la mia routine»? Spiegamela in una frase.",
+        "assistantText": "«Vincere» riguarda un risultato che dipende anche da altri, mentre «seguire la mia routine» riguarda un’azione che puoi scegliere di eseguire.",
+        "transcript": [],
+        "personalContext": {},
+        "historyComplete": true,
+        "personalContextComplete": true,
+        "answerAvailable": true
+      },
+      "expected": {
+        "repeated_question": "not_applicable",
+        "ignored_correction": "not_applicable",
+        "unsupported_personal_fact": "not_applicable",
+        "unaddressed_request": "clear"
+      },
+      "targetCheck": "unaddressed_request",
+      "pairId": "ur04-direct-concept",
+      "role": "control",
+      "rationale": "The answer gives the requested one-sentence contrast between an outcome and an action under the person’s control. It does not assert that the user already has a particular routine.",
+      "evidence": [
+        {
+          "source": "userMessage",
+          "quote": "tra «vincere» e «seguire la mia routine»"
+        },
+        {
+          "source": "assistantText",
+          "quote": "un risultato che dipende anche da altri"
+        },
+        {
+          "source": "assistantText",
+          "quote": "un’azione che puoi scegliere"
+        }
+      ],
+      "ambiguity": null,
+      "tags": [
+        "direct conceptual request",
+        "complete direct answer",
+        "generic explanation"
+      ],
+      "privacy": {
+        "syntheticOnly": true,
+        "containsRealUserContent": false,
+        "containsCredentials": false
+      }
+    }
+  ],
+  "separateAnalysis": {
+    "memory": [],
+    "planning": [],
+    "ranking": [
+      {
+        "caseId": "next-core-ranking-01",
+        "candidate": "candidate_1",
+        "frozenLabel": "relevant",
+        "acceptableAlternativeLabels": ["uncertain"],
+        "requiredRetention": true,
+        "rationale": "The sport example may need interpretation before transfer to teaching, but the user explicitly requested experience from other contexts. It should remain available."
+      },
+      {
+        "caseId": "next-core-ranking-02",
+        "candidate": "candidate_2",
+        "frozenLabel": "relevant",
+        "acceptableAlternativeLabels": ["uncertain"],
+        "requiredRetention": true,
+        "rationale": "Transfer from a poetry reading to a choir demonstration may be tentative, but this is still the requested person’s experience and should be retained."
+      },
+      {
+        "caseId": "next-core-ranking-03",
+        "candidate": "candidate_3",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The incomplete fragment appears aligned with the request but its missing continuation prevents a firm statement of the advice. Retain it under either label."
+      },
+      {
+        "caseId": "next-core-ranking-04",
+        "candidate": "candidate_2",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The partial teaching fragment plausibly contains the same principle, but its activity and final instruction are absent. It should be retained."
+      },
+      {
+        "caseId": "next-core-ranking-05",
+        "candidate": "candidate_3",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The undated preference is compatible with current pair work but lacks temporal evidence. Relevant and uncertain both justify retaining it."
+      },
+      {
+        "caseId": "next-core-ranking-06",
+        "candidate": "candidate_3",
+        "frozenLabel": "uncertain",
+        "acceptableAlternativeLabels": ["relevant"],
+        "requiredRetention": true,
+        "rationale": "The fragment is compatible with the known resource limits but lacks attribution. Keep it rather than treating it as confirmed account-holder context."
+      },
+      {
+        "caseId": "next-core-ranking-04",
+        "candidate": "candidate_0",
+        "frozenLabel": "relevant",
+        "acceptableAlternativeLabels": ["uncertain"],
+        "requiredRetention": true,
+        "rationale": "Independent pre-call review: the 1200-character model-visible prefix omits the explicit sequence, but still includes potentially useful teaching guidance."
+      }
+    ],
+    "answer": [],
+    "notes": [
+      "All expected labels and rationales are outside input objects. They must not be sent to the model.",
+      "Ranking exact-label scores and retention decisions must be reported separately. Alternative relevant/uncertain labels are predeclared only for the listed items; all those alternatives require retention.",
+      "The long document has mixed logistics and relevant teaching guidance. Judge its usefulness for the actual request, not the presence of isolated keywords.",
+      "The paired memory cases contain one eligible fact and one rejected fact each; positive and negative candidate order varies.",
+      "Candidate keys are unprefixed. Referenced-person identity appears in candidate subject fields and canonical stored keys.",
+      "The parent performs actual extractor-schema and deterministic-runtime validation; this artifact has only local structure, cardinality, evidence and date checks."
+    ]
+  },
+  "localValidation": {
+    "checkedAt": "2026-09-20T17:52:14.027Z",
+    "counts": {
+      "memoryCases": 16,
+      "memoryCandidates": 24,
+      "pairedMemoryCases": 8,
+      "singleMemoryGroups": {
+        "duplicate": 2,
+        "correction": 2,
+        "sensitive": 2,
+        "temporary": 2
+      },
+      "planningCases": 12,
+      "planningPairs": 6,
+      "rankingCases": 6,
+      "rankingItems": 24,
+      "answerFixtures": 0,
+      "predeclaredRankingAmbiguities": 6
+    },
+    "checks": "Cardinalities, enum literals, candidate keys, literal evidence, future expiry metadata, paired plans, retention labels and unique IDs passed. No production code or prior output files were read; actual runtime schema validation remains with the parent."
+  },
+  "labelsFrozenBeforeModelOutputs": true,
+  "preflightCorrections": [
+    {
+      "caseId": "next-core-memory-15",
+      "change": "Use literal date expression 31 maggio 2027 and next-midnight expiry; no expected-label change. Use trusted fixture timezone UTC; candidate timezone is null because the message supplies none."
+    },
+    {
+      "caseId": "next-core-memory-16",
+      "change": "Use literal date expression 30 June 2028 and next-midnight expiry; no expected-label change. Use trusted fixture timezone UTC; candidate timezone is null because the message supplies none."
+    }
+  ],
+  "answerAuthoring": {
+    "version": 1,
+    "createdAt": "2026-09-20T17:54:01.488489+00:00",
+    "purpose": "Fresh synthetic answer evaluation authored before any outputs from this corpus; no prior run or new core fixture was inspected during authoring.",
+    "labelStatus": "Author labels saved before model testing; parent blind review and any pre-evaluation adjudication are recorded separately.",
+    "privacy": {
+      "scope": "synthetic",
+      "containsRealUserContent": false,
+      "containsCredentials": false
+    },
+    "providerBoundary": "Only turn evidence may be sent to judges. Exclude IDs, targetCheck, expected, pairId, role, rationale, evidence excerpts, tags, and ambiguity metadata from provider state.",
+    "scoringPolicy": [
+      "Score primary target checks separately from auxiliary labels; disclose N/A and expected-uncertainty denominators.",
+      "Each defect/control pair shares a semantic boundary; paired examples may differ in the response or in the expressly relevant current evidence.",
+      "An expected-uncertainty control is a known evidence limitation, not a forced binary label. Any new reviewer disagreement must be scoped to its check and frozen before outputs."
+    ],
+    "summary": {
+      "cases": 32,
+      "pairs": 16,
+      "primaryDefects": 16,
+      "primaryControls": 16,
+      "targetLabels": {
+        "flagged": 16,
+        "clear": 13,
+        "not_applicable": 2,
+        "uncertain": 1
+      },
+      "primaryApplicable": 29,
+      "predeclaredAmbiguityCases": ["fresh-next-pf04-omitted-context-control"]
+    }
+  },
+  "preEvaluationReview": {
+    "completedAt": "2026-09-20T17:58:37.338978+00:00",
+    "labelsChanged": false,
+    "coreAuthorSHA256": "2c178ceb3694ae7a32faa3126a571b63f9f2a6e0a4f4096c5a79ad2e4648c54c",
+    "answerAuthorSHA256": "d46233c3b6be1a482d094928d9c9ab5ae4f58d9688e36f07603b154afeb6aa50",
+    "coreReviewSHA256": "3d3c7c8ff90069c3c93a4846a12be010eb34274774a080725b9a586552cbc613",
+    "answerAdjudication": {
+      "pairId": "ic03-completed-decision",
+      "reviewerConcern": "A narrow interpretation of correction might return not_applicable for a task update.",
+      "resolution": "Original flagged/clear labels retained; the current check explicitly covers replacing a task. The user explicitly says the decision is complete and supplies the replacement task. No alternative label accepted."
+    },
+    "scoring": "Report strict author labels, predeclared ranking alternatives, retention membership and order separately. Report primary, auxiliary, expected uncertainty, unwanted abstentions and definite errors separately."
+  }
+}

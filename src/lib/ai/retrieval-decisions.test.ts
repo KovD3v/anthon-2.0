@@ -138,8 +138,11 @@ describe("Jev retrieval decisions", () => {
   it.each([
     "The cue you suggested feels too complicated during my performance.",
     "La sequenza che avevi consigliato aumenta la confusione.",
+    "The layout you proposed needs a shorter introduction.",
+    "L’apertura che avevi indicato per il seminario è troppo formale.",
+    "Vorrei adattare quegli esercizi al mio laboratorio.",
   ])(
-    "checks a past-advice reference without a demonstrative: %s",
+    "checks a past-advice or plural reference: %s",
     async (message) => {
       const input = {
         ...recallInput(),
