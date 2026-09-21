@@ -72,8 +72,8 @@ for the policy and verification commands.
 
 `NEXT_PUBLIC_APP_URL` is used for link generation (channel linking, embedding headers, callbacks).
 
-The Clerk Dashboard must allow the app's `/sso-callback` URL for Apple,
-Facebook, and Google in each environment. Live OAuth, email delivery, bot
+The Clerk Dashboard must allow the app's `/sso-callback` URL for Google in each
+environment. Live OAuth, email delivery, bot
 protection, client trust, MFA, and session-task checks require development Clerk
 credentials and are release gates rather than mocked unit-test assertions.
 

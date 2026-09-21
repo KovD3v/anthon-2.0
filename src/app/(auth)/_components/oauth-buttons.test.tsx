@@ -51,7 +51,7 @@ describe("OAuthButtons", () => {
     );
 
     await user.click(
-      screen.getByRole("button", { name: "Continua con Apple" }),
+      screen.getByRole("button", { name: "Continua con Google" }),
     );
 
     expect(mocks.signUp.sso).not.toHaveBeenCalled();

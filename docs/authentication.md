@@ -118,7 +118,7 @@ URLs:
 
 | Route | Purpose |
 | --- | --- |
-| `/sign-in` | Password, Apple, Facebook, Google, client trust, and MFA |
+| `/sign-in` | Password, Google, client trust, and MFA |
 | `/sign-up` | Email/password registration, legal consent, CAPTCHA, and email verification |
 | `/forgot-password` | Email-code password reset and session finalization |
 | `/sso-callback` | Clerk OAuth callback |
@@ -198,8 +198,8 @@ export function Header() {
 
 Before a production release:
 
-- register `/sso-callback` for local, preview, and production Apple, Facebook,
-  and Google applications;
+- register `/sso-callback` for local, preview, and production Google
+  applications;
 - confirm email-code client trust, reset-password email delivery, MFA methods,
   and all three session tasks against a development Clerk instance;
 - remove the stale `tryahtnon.com` value from Clerk Dashboard configuration;

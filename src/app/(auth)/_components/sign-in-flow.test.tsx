@@ -52,14 +52,14 @@ describe("SignInFlow", () => {
     render(<SignInFlow continuation="/chat" />);
     expect(screen.getByRole("heading", { name: "Bentornato" })).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: "Continua con Apple" }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Continua con Facebook" }),
-    ).toBeTruthy();
-    expect(
       screen.getByRole("button", { name: "Continua con Google" }),
     ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Continua con Apple" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Continua con Facebook" }),
+    ).toBeNull();
     expect(screen.getByLabelText("Email")).toBeTruthy();
     expect(screen.getByLabelText("Password")).toBeTruthy();
   });
