@@ -3,6 +3,7 @@ import type { SubscriptionStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { type CanonicalPlan, parseCanonicalPlanFromPlanId } from "@/lib/plans";
+import { isStripeTestBilling } from "./config";
 
 const billingLogger = createLogger("usage");
 const BILLING_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
@@ -204,11 +205,15 @@ async function clearLocalSubscriptionState(userId: string): Promise<void> {
   });
 }
 
-export async function syncPersonalSubscriptionFromClerk(params: {
+export async function syncPersonalSubscription(params: {
   userId: string;
   clerkUserId: string;
   current?: CurrentSubscriptionState | null;
 }): Promise<CurrentSubscriptionState | null> {
+  if (isStripeTestBilling()) {
+    const { syncPersonalSubscriptionFromStripe } = await import("./stripe");
+    return syncPersonalSubscriptionFromStripe(params.userId);
+  }
   const { userId, clerkUserId, current } = params;
   const syncAttemptedAt = new Date();
 

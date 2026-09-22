@@ -2,6 +2,10 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
+import {
+  getStripeTestDatabaseUrl,
+  isStripeTestBilling,
+} from "./src/lib/billing/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -10,10 +14,15 @@ export default defineConfig({
     seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
+    shadowDatabaseUrl: isStripeTestBilling()
+      ? process.env.STRIPE_TEST_SHADOW_DATABASE_URL
+      : undefined,
     // Use direct connection for migrations when available (no pooler)
     // Falls back to DATABASE_URL if DIRECT_DATABASE_URL is not set
-    url: process.env.DIRECT_DATABASE_URL
-      ? env("DIRECT_DATABASE_URL")
-      : env("DATABASE_URL"),
+    url: isStripeTestBilling()
+      ? getStripeTestDatabaseUrl(true)
+      : process.env.DIRECT_DATABASE_URL
+        ? env("DIRECT_DATABASE_URL")
+        : env("DATABASE_URL"),
   },
 });

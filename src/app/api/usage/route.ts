@@ -8,7 +8,7 @@ import { jsonOk, serverError, unauthorized } from "@/lib/api/responses";
 import { getAuthUser, getFullUser } from "@/lib/auth";
 import {
   isBillingSyncStale,
-  syncPersonalSubscriptionFromClerk,
+  syncPersonalSubscription,
 } from "@/lib/billing/personal-subscription";
 import {
   isOnboardingRequired,
@@ -39,7 +39,7 @@ export async function GET(_request: Request) {
       (!subscriptionStatus || !planId || subscriptionStatus !== "ACTIVE");
 
     if (shouldSyncSubscription && fullUser?.clerkId) {
-      const syncedSubscription = await syncPersonalSubscriptionFromClerk({
+      const syncedSubscription = await syncPersonalSubscription({
         userId: user.id,
         clerkUserId: fullUser.clerkId,
         current: {

@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "prisma generate && next dev",
+    "dev:stripe-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test scripts/dev-stripe-test.ts",
+    "billing:setup-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test scripts/setup-stripe-test.ts",
+    "billing:verify-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test --conditions=react-server scripts/verify-stripe-test.ts",
     "build": "prisma generate && next build",
     "vercel:build": "bash scripts/vercel-build.sh",
     "start": "next start",
@@ -70,6 +73,7 @@
     "remark-gfm": "^4.0.1",
     "server-only": "0.0.1",
     "sonner": "2.0.8",
+    "stripe": "^22.6.2",
     "svix": "^1.99.1",
     "tokenlens": "^1.3.1",
     "zod": "^4.1.13"

@@ -7,7 +7,7 @@ import { trackInboundUserMessageFunnelProgress } from "@/lib/analytics/funnel";
 import { resolveAuthenticatedClerkId } from "@/lib/auth-identity";
 import {
   isBillingSyncStale,
-  syncPersonalSubscriptionFromClerk,
+  syncPersonalSubscription,
 } from "@/lib/billing/personal-subscription";
 import type { ChannelMessagePart } from "@/lib/channel-flow";
 import { runChannelFlow } from "@/lib/channel-flow";
@@ -328,7 +328,7 @@ export async function handleWebChatPost(request: Request) {
               LatencyLogger.measure(
                 "Billing: Sync personal subscription",
                 () =>
-                  syncPersonalSubscriptionFromClerk({
+                  syncPersonalSubscription({
                     userId: user.id,
                     clerkUserId: clerkId,
                     current: {

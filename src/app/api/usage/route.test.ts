@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getDailyUsage: vi.fn(),
   resolveEffectiveEntitlements: vi.fn(),
   isBillingSyncStale: vi.fn(),
-  syncPersonalSubscriptionFromClerk: vi.fn(),
+  syncPersonalSubscription: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -24,7 +24,7 @@ vi.mock("@/lib/organizations/entitlements", () => ({
 
 vi.mock("@/lib/billing/personal-subscription", () => ({
   isBillingSyncStale: mocks.isBillingSyncStale,
-  syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
+  syncPersonalSubscription: mocks.syncPersonalSubscription,
 }));
 
 import { PlanResolutionError } from "@/lib/plans";
@@ -39,7 +39,7 @@ describe("GET /api/usage", () => {
     mocks.getDailyUsage.mockReset();
     mocks.resolveEffectiveEntitlements.mockReset();
     mocks.isBillingSyncStale.mockReset();
-    mocks.syncPersonalSubscriptionFromClerk.mockReset();
+    mocks.syncPersonalSubscription.mockReset();
 
     mocks.getAuthUser.mockResolvedValue({
       user: { id: "user-1", role: "USER" },
@@ -87,7 +87,7 @@ describe("GET /api/usage", () => {
         },
       ],
     });
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.syncPersonalSubscription.mockResolvedValue(null);
     mocks.isBillingSyncStale.mockImplementation(
       (billingSyncedAt?: Date | null) =>
         !billingSyncedAt ||
@@ -253,7 +253,7 @@ describe("GET /api/usage", () => {
     const response = await GET(request());
 
     expect(response.status).toBe(402);
-    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+    expect(mocks.syncPersonalSubscription).not.toHaveBeenCalled();
   });
 
   it("syncs when expired subscription state is stale", async () => {
@@ -267,7 +267,7 @@ describe("GET /api/usage", () => {
         planId: "my-basic-plan",
       },
     });
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue({
+    mocks.syncPersonalSubscription.mockResolvedValue({
       status: "ACTIVE",
       planId: "my-pro-plan",
     });
@@ -275,7 +275,7 @@ describe("GET /api/usage", () => {
     const response = await GET(request());
 
     expect(response.status).toBe(200);
-    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledWith({
+    expect(mocks.syncPersonalSubscription).toHaveBeenCalledWith({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
@@ -299,7 +299,7 @@ describe("GET /api/usage", () => {
       billingSyncedAt: new Date(Date.now() - 6 * 60 * 1000),
       subscription: null,
     });
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.syncPersonalSubscription.mockResolvedValue(null);
 
     mocks.resolveEffectiveEntitlements.mockRejectedValue(
       new PlanResolutionError("PAID_ACCESS_REQUIRED"),
@@ -307,7 +307,7 @@ describe("GET /api/usage", () => {
     const response = await GET(request());
 
     expect(response.status).toBe(402);
-    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
+    expect(mocks.syncPersonalSubscription).toHaveBeenCalledTimes(1);
   });
 
   it("returns 500 when downstream dependency throws", async () => {

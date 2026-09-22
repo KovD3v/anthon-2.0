@@ -1,5 +1,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma";
+import {
+  getStripeTestDatabaseUrl,
+  isStripeTestBilling,
+} from "@/lib/billing/config";
 import { createDatabasePool, warmDatabasePool } from "@/lib/db-pool";
 import { LatencyLogger } from "@/lib/latency-logger";
 import { createLogger } from "@/lib/logger";
@@ -14,7 +18,9 @@ const globalForDatabase = globalThis as unknown as {
 
 // Create Prisma client using pg adapter for Prisma 7
 function createDatabase() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = isStripeTestBilling()
+    ? getStripeTestDatabaseUrl()
+    : process.env.DATABASE_URL;
 
   if (!connectionString) {
     throw new Error("DATABASE_URL environment variable is not set");

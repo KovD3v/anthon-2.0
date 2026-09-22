@@ -30,7 +30,7 @@ const subscribe = () => () => {};
 const getClientSnapshot = () => true;
 const getServerSnapshot = () => false;
 
-export function Navbar() {
+export function Navbar({ stripeBilling = false }: { stripeBilling?: boolean }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
@@ -163,6 +163,12 @@ export function Navbar() {
             </Show>
             <Show when="signed-in">
               <UserButton
+                {...(stripeBilling
+                  ? {
+                      userProfileMode: "navigation" as const,
+                      userProfileUrl: "/profile",
+                    }
+                  : { userProfileMode: "modal" as const })}
                 appearance={{
                   elements: {
                     avatarBox: "h-10 w-10",
@@ -310,7 +316,14 @@ export function Navbar() {
                   <Show when="signed-in">
                     <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
                       <div className="flex items-center gap-2">
-                        <UserButton />
+                        <UserButton
+                          {...(stripeBilling
+                            ? {
+                                userProfileMode: "navigation" as const,
+                                userProfileUrl: "/profile",
+                              }
+                            : { userProfileMode: "modal" as const })}
+                        />
                         <div className="flex flex-col">
                           <span className="text-sm font-semibold">Profilo</span>
                           <span className="text-xs text-muted-foreground">

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { PLAN_CATALOG } from "./catalog";
 import { PlanResolutionError } from "./errors";
 import {
@@ -9,6 +9,30 @@ import {
 } from "./resolver";
 
 describe("plans/resolver", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("does not mix Clerk entitlements and isolated Stripe test payments", () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    expect(() =>
+      resolvePersonalPlan({
+        subscriptionStatus: "ACTIVE",
+        planId: "my-basic-plan",
+      }),
+    ).toThrow(PlanResolutionError);
+    expect(
+      resolvePersonalPlan({
+        subscriptionStatus: "ACTIVE",
+        planId: "stripe_test:basic_plus",
+      }),
+    ).toBe("BASIC_PLUS");
+    vi.stubEnv("BILLING_PROVIDER", "clerk");
+    expect(() =>
+      resolvePersonalPlan({
+        subscriptionStatus: "ACTIVE",
+        planId: "stripe_test:basic_plus",
+      }),
+    ).toThrow(PlanResolutionError);
+  });
   it("parses canonical plans from planId strings", () => {
     expect(parseCanonicalPlanFromPlanId("my-pro-plan")).toBe("PRO");
     expect(parseCanonicalPlanFromPlanId("my-basic_plus-plan")).toBe(

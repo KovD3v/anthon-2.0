@@ -1485,12 +1485,14 @@ model Subscription {
 
   status              SubscriptionStatus @default(EXPIRED)
   clerkSubscriptionId String?            @unique // Clerk Billing subscription ID
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
 
   convertedAt DateTime? // When paid access started
   canceledAt  DateTime? // When subscription was canceled
 
   // Plan information
-  planId   String? // Plan ID (from Clerk)
+  planId   String? // Clerk plan ID or canonical Stripe plan key
   planName String? // Plan name for reference
 
   createdAt DateTime @default(now())

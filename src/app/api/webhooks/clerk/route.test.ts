@@ -1,4 +1,12 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 const mocks = vi.hoisted(() => ({
   headers: vi.fn(),
@@ -63,6 +71,26 @@ function setSvixHeaders(values?: Partial<Record<string, string>>) {
 }
 
 describe("POST /api/webhooks/clerk", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("ignores Clerk subscription events only in Stripe test mode", async () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    mocks.webhookVerify.mockReturnValue({
+      type: "subscription.updated",
+      data: { id: "clerk-sub" },
+    });
+    expect(
+      (
+        await POST(
+          new Request("http://localhost/api/webhooks/clerk", {
+            method: "POST",
+            body: "{}",
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(mocks.handleSubscriptionUpdated).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     process.env.CLERK_WEBHOOK_SECRET = "wh-secret";
 

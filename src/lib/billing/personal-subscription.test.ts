@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   clerkClient: vi.fn(),
@@ -7,10 +7,14 @@ const mocks = vi.hoisted(() => ({
   subscriptionUpdateMany: vi.fn(),
   userUpdate: vi.fn(),
   loggerWarn: vi.fn(),
+  stripeSync: vi.fn(),
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
   clerkClient: mocks.clerkClient,
+}));
+vi.mock("./stripe", () => ({
+  syncPersonalSubscriptionFromStripe: mocks.stripeSync,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -34,9 +38,26 @@ vi.mock("@/lib/logger", () => ({
   }),
 }));
 
-import { syncPersonalSubscriptionFromClerk } from "./personal-subscription";
+import { syncPersonalSubscription } from "./personal-subscription";
 
-describe("syncPersonalSubscriptionFromClerk", () => {
+describe("syncPersonalSubscription", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("uses Stripe reconciliation without calling Clerk billing in test mode", async () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    mocks.stripeSync.mockResolvedValue({
+      status: "ACTIVE",
+      planId: "stripe_test:basic",
+    });
+    expect(
+      await syncPersonalSubscription({
+        userId: "user-1",
+        clerkUserId: "clerk_1",
+      }),
+    ).toEqual({ status: "ACTIVE", planId: "stripe_test:basic" });
+    expect(mocks.clerkClient).not.toHaveBeenCalled();
+    expect(mocks.stripeSync).toHaveBeenCalledWith("user-1");
+  });
   beforeEach(() => {
     mocks.clerkClient.mockReset();
     mocks.getUserBillingSubscription.mockReset();
@@ -83,7 +104,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
       ],
     });
 
-    const result = await syncPersonalSubscriptionFromClerk({
+    const result = await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
@@ -146,7 +167,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
       ],
     });
 
-    const result = await syncPersonalSubscriptionFromClerk({
+    const result = await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: null,
@@ -189,7 +210,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
       ],
     });
 
-    await syncPersonalSubscriptionFromClerk({
+    await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: null,
@@ -207,7 +228,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
   });
 
   it("preserves the original conversion time during ACTIVE sync", async () => {
-    await syncPersonalSubscriptionFromClerk({
+    await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
@@ -228,7 +249,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
   it("downgrades stale local subscription when Clerk subscription is not found", async () => {
     mocks.getUserBillingSubscription.mockRejectedValue({ status: 404 });
 
-    const result = await syncPersonalSubscriptionFromClerk({
+    const result = await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
@@ -262,7 +283,7 @@ describe("syncPersonalSubscriptionFromClerk", () => {
   it("keeps null state when Clerk subscription is not found and no local state exists", async () => {
     mocks.getUserBillingSubscription.mockRejectedValue({ status: 404 });
 
-    const result = await syncPersonalSubscriptionFromClerk({
+    const result = await syncPersonalSubscription({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: null,

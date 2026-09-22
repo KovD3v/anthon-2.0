@@ -11,6 +11,7 @@
 
 import { headers } from "next/headers";
 import { Webhook } from "svix";
+import { isStripeTestBilling } from "@/lib/billing/config";
 import { createLogger, withRequestLogContext } from "@/lib/logger";
 import {
   handleOrganizationDeleted,
@@ -85,6 +86,11 @@ export async function POST(req: Request) {
 
       // Handle the event
       const eventType = evt.type;
+      if (isStripeTestBilling() && eventType.startsWith("subscription")) {
+        return new Response("Clerk billing ignored in Stripe test mode", {
+          status: 200,
+        });
+      }
       webhookLogger.info(
         "webhook.clerk.received",
         "Received Clerk webhook event",

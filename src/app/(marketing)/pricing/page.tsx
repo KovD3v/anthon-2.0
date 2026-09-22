@@ -1,14 +1,18 @@
 import { Info } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
+import { isStripeTestBilling } from "@/lib/billing/config";
 import { LocalizedPricingTable } from "./LocalizedPricingTable";
+import { StripePricing } from "./StripePricing";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
 // See: https://nextjs.org/docs/app/guides/migrating-to-cache-components
 export const instant = false;
 
 export default function PricingPage() {
+  const stripeTest = isStripeTestBilling();
   return (
     <PageWrapper>
       <div className="min-h-screen bg-background py-12 md:py-20">
@@ -21,20 +25,32 @@ export default function PricingPage() {
               Scegli il piano in base al tuo obiettivo sportivo
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
-              Prova Anthon in chat. Puoi cambiare piano quando vuoi allenarti
-              con più continuità o coinvolgere la squadra.
+              {stripeTest
+                ? "Prova il pagamento e la gestione dell’abbonamento in ambiente di test. Pro e piani annuali non sono ancora disponibili."
+                : "Prova Anthon in chat. Puoi cambiare piano quando vuoi allenarti con più continuità o coinvolgere la squadra."}
             </p>
           </div>
 
           <div className="max-w-5xl mx-auto">
-            <LocalizedPricingTable />
-            <div className="mt-4 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-left text-sm text-muted-foreground">
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              <p>
-                Con la fatturazione annuale, il prezzo mostrato è l’equivalente
-                mensile; l’addebito viene effettuato una volta all’anno.
-              </p>
-            </div>
+            {stripeTest ? (
+              <Suspense
+                fallback={<output>Caricamento listino in euro…</output>}
+              >
+                <StripePricing />
+              </Suspense>
+            ) : (
+              <LocalizedPricingTable />
+            )}
+            {!stripeTest && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-left text-sm text-muted-foreground">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <p>
+                  Con la fatturazione annuale, il prezzo mostrato è
+                  l’equivalente mensile; l’addebito viene effettuato una volta
+                  all’anno.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
@@ -42,7 +58,7 @@ export default function PricingPage() {
               <Link href="/chat">Inizia in chat</Link>
             </Button>
             <Button variant="outline" asChild>
-              <a href="mailto:anthon.chat@gmail.com">Parla con il team</a>
+              <Link href="mailto:anthon.chat@gmail.com">Parla con il team</Link>
             </Button>
           </div>
         </div>

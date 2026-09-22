@@ -33,7 +33,7 @@ const mocks = vi.hoisted(() => ({
   consolidateTurnMemory: vi.fn(),
   trackInboundUserMessageFunnelProgress: vi.fn(),
   isBillingSyncStale: vi.fn(),
-  syncPersonalSubscriptionFromClerk: vi.fn(),
+  syncPersonalSubscription: vi.fn(),
   isRoutineFeatureEnabled: vi.fn(),
   decideWebVoiceMode: vi.fn(),
   getVoiceUnavailability: vi.fn(),
@@ -148,7 +148,7 @@ vi.mock("@/lib/analytics/funnel", () => ({
 
 vi.mock("@/lib/billing/personal-subscription", () => ({
   isBillingSyncStale: mocks.isBillingSyncStale,
-  syncPersonalSubscriptionFromClerk: mocks.syncPersonalSubscriptionFromClerk,
+  syncPersonalSubscription: mocks.syncPersonalSubscription,
 }));
 
 vi.mock("@/lib/coaching/routine-feature", () => ({
@@ -398,7 +398,7 @@ describe("POST /api/chat", () => {
     mocks.consolidateTurnMemory.mockReset();
     mocks.trackInboundUserMessageFunnelProgress.mockReset();
     mocks.isBillingSyncStale.mockReset();
-    mocks.syncPersonalSubscriptionFromClerk.mockReset();
+    mocks.syncPersonalSubscription.mockReset();
     mocks.isRoutineFeatureEnabled.mockReset();
     mocks.decideWebVoiceMode.mockReset();
     mocks.getVoiceUnavailability.mockReset();
@@ -517,7 +517,7 @@ describe("POST /api/chat", () => {
       rejected: 0,
     });
     mocks.trackInboundUserMessageFunnelProgress.mockResolvedValue(undefined);
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.syncPersonalSubscription.mockResolvedValue(null);
     mocks.isRoutineFeatureEnabled.mockResolvedValue(false);
     mocks.isBillingSyncStale.mockImplementation(
       (billingSyncedAt?: Date | null) =>
@@ -880,7 +880,7 @@ describe("POST /api/chat", () => {
     await expect(response.json()).resolves.toEqual({
       error: "Chat not found or access denied",
     });
-    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+    expect(mocks.syncPersonalSubscription).not.toHaveBeenCalled();
     expect(mocks.checkRateLimit).not.toHaveBeenCalled();
     expect(mocks.messageCreate).not.toHaveBeenCalled();
   });
@@ -959,7 +959,7 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(402);
-    expect(mocks.syncPersonalSubscriptionFromClerk).not.toHaveBeenCalled();
+    expect(mocks.syncPersonalSubscription).not.toHaveBeenCalled();
   });
 
   it("syncs stale expired subscription before rate-limit check", async () => {
@@ -973,7 +973,7 @@ describe("POST /api/chat", () => {
         planId: "my-basic-plan",
       },
     });
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue({
+    mocks.syncPersonalSubscription.mockResolvedValue({
       status: "ACTIVE",
       planId: "my-pro-plan",
     });
@@ -986,7 +986,7 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledWith({
+    expect(mocks.syncPersonalSubscription).toHaveBeenCalledWith({
       userId: "user-1",
       clerkUserId: "clerk_1",
       current: {
@@ -1020,7 +1020,7 @@ describe("POST /api/chat", () => {
         planId: null,
       },
     });
-    mocks.syncPersonalSubscriptionFromClerk.mockResolvedValue(null);
+    mocks.syncPersonalSubscription.mockResolvedValue(null);
     mocks.checkRateLimit.mockResolvedValue({
       allowed: false,
       reason: "PAID_ACCESS_REQUIRED",
@@ -1034,7 +1034,7 @@ describe("POST /api/chat", () => {
     );
 
     expect(response.status).toBe(402);
-    expect(mocks.syncPersonalSubscriptionFromClerk).toHaveBeenCalledTimes(1);
+    expect(mocks.syncPersonalSubscription).toHaveBeenCalledTimes(1);
     expect(mocks.checkRateLimit).toHaveBeenCalledWith(
       "user-1",
       "EXPIRED",

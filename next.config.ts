@@ -68,7 +68,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["pg"],
 };
 
-export default process.env.POSTHOG_UPLOAD_SOURCEMAPS === "1"
+// The isolated billing sandbox does not upload source maps or require analytics credentials.
+export default process.env.POSTHOG_UPLOAD_SOURCEMAPS === "1" &&
+!(
+  process.env.BILLING_PROVIDER === "stripe_test" &&
+  process.env.VERCEL_ENV !== "production"
+)
   ? withPostHogConfig(nextConfig, {
       personalApiKey: getRequiredEnv("POSTHOG_PERSONAL_API_KEY"),
       projectId: getRequiredEnv("POSTHOG_PROJECT_ID"),

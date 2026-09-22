@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   userDelete: vi.fn(),
   deletePrivateVoiceBlobsForMessages: vi.fn(),
   invalidateAllDerivedCachesForUser: vi.fn(),
+  withStripeAccountDeletion: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -15,6 +16,10 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("@/lib/ai/deletion-lifecycle", () => ({
   invalidateAllDerivedCachesForUser: mocks.invalidateAllDerivedCachesForUser,
+}));
+
+vi.mock("@/lib/billing/stripe", () => ({
+  withStripeAccountDeletion: mocks.withStripeAccountDeletion,
 }));
 
 vi.mock("@clerk/nextjs/server", () => ({
@@ -66,6 +71,25 @@ describe("DELETE /api/user/me", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("does not delete identity or data if Stripe cancellation fails", async () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    mocks.withStripeAccountDeletion.mockRejectedValue(
+      new Error("Stripe unavailable"),
+    );
+    expect((await DELETE()).status).toBe(500);
+    expect(mocks.clerkDeleteUser).not.toHaveBeenCalled();
+    expect(mocks.userDelete).not.toHaveBeenCalled();
+    mocks.withStripeAccountDeletion.mockImplementation(async (_id, remove) =>
+      remove(),
+    );
+    expect((await DELETE()).status).toBe(200);
+    expect(mocks.withStripeAccountDeletion).toHaveBeenLastCalledWith(
+      authUser.id,
+      expect.any(Function),
+    );
+    expect(mocks.clerkDeleteUser).toHaveBeenCalledWith(authUser.clerkId);
   });
 
   it("returns 401 without calling Clerk or Prisma when unauthenticated", async () => {
