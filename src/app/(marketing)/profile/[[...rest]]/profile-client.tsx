@@ -2,11 +2,15 @@
 
 import { AccountConsole } from "../components/AccountConsole";
 
-export function ProfileClient() {
+export function ProfileClient({
+  isStripeTestBilling = false,
+}: {
+  isStripeTestBilling?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-5xl px-3 py-7 sm:px-6 sm:py-14">
-        <AccountConsole />
+        <AccountConsole isStripeTestBilling={isStripeTestBilling} />
       </main>
     </div>
   );

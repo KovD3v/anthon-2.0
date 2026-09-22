@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import {
   getStripeTestDatabaseUrl,
   getStripeTestOrigin,
@@ -31,7 +31,7 @@ const listener = spawn(
     "--events",
     "customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,checkout.session.completed,invoice.paid,invoice.payment_failed",
   ],
-  { env: stripeEnv, stdio: ["ignore", "pipe", "pipe"] },
+  { env: stripeEnv, stdio: ["ignore", "pipe", "pipe"], detached: true },
 );
 // Keep the CLI-generated signing secret in process memory, never in terminal output.
 function redact(chunk: Buffer) {
@@ -44,17 +44,33 @@ listener.stderr?.on("data", redact);
 const server = spawn(
   "bun",
   ["run", "dev", "--port", new URL(origin).port || "3000"],
-  { env: { ...process.env, STRIPE_WEBHOOK_SECRET: secret }, stdio: "inherit" },
+  {
+    env: { ...process.env, STRIPE_WEBHOOK_SECRET: secret },
+    stdio: "inherit",
+    detached: true,
+  },
 );
 
+// Stop the complete local process group, including bunx and Next.js workers.
+const terminated = new Set<number>();
+function terminate(child: ChildProcess) {
+  if (!child.pid || terminated.has(child.pid)) return;
+  terminated.add(child.pid);
+  try {
+    process.kill(-child.pid, "SIGTERM");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+  }
+}
+
 function stop() {
-  listener.kill("SIGTERM");
-  server.kill("SIGTERM");
+  terminate(listener);
+  terminate(server);
 }
 process.on("SIGINT", stop);
 process.on("SIGTERM", stop);
-listener.on("exit", () => server.kill("SIGTERM"));
+listener.on("exit", () => terminate(server));
 server.on("exit", (code) => {
-  listener.kill("SIGTERM");
+  terminate(listener);
   process.exitCode = code ?? 1;
 });

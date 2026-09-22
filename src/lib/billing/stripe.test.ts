@@ -11,8 +11,13 @@ const mocks = vi.hoisted(() => ({
   checkoutCreate: vi.fn(),
   expire: vi.fn(),
   cancel: vi.fn(),
-  portalConfigurations: vi.fn(),
-  portalCreate: vi.fn(),
+  retrieveCustomer: vi.fn(),
+  updateCustomer: vi.fn(),
+  updateSubscription: vi.fn(),
+  setupCreate: vi.fn(),
+  setupRetrieve: vi.fn(),
+  paymentMethod: vi.fn(),
+  invoices: vi.fn(),
   findSubscription: vi.fn(),
   upsert: vi.fn(),
   update: vi.fn(),
@@ -24,18 +29,25 @@ vi.mock("server-only", () => ({}));
 vi.mock("stripe", () => ({
   default: class {
     prices = { list: mocks.prices };
-    customers = { create: mocks.customers };
-    subscriptions = { list: mocks.subscriptions, cancel: mocks.cancel };
+    customers = {
+      create: mocks.customers,
+      retrieve: mocks.retrieveCustomer,
+      update: mocks.updateCustomer,
+    };
+    subscriptions = {
+      list: mocks.subscriptions,
+      cancel: mocks.cancel,
+      update: mocks.updateSubscription,
+    };
+    setupIntents = { create: mocks.setupCreate, retrieve: mocks.setupRetrieve };
+    paymentMethods = { retrieve: mocks.paymentMethod };
+    invoices = { list: mocks.invoices };
     checkout = {
       sessions: {
         list: mocks.checkoutList,
         create: mocks.checkoutCreate,
         expire: mocks.expire,
       },
-    };
-    billingPortal = {
-      configurations: { list: mocks.portalConfigurations },
-      sessions: { create: mocks.portalCreate },
     };
   },
 }));
@@ -58,10 +70,13 @@ vi.mock("@/lib/db", () => {
 });
 
 import {
+  confirmStripePaymentMethod,
   createStripeCheckout,
-  createStripePortal,
+  createStripePaymentMethodSetup,
   getStripe,
+  getStripeBillingSummary,
   handleStripeEvent,
+  setStripeCancellation,
   stripeSubscriptionState,
   syncPersonalSubscriptionFromStripe,
   withStripeAccountDeletion,
@@ -91,7 +106,10 @@ const activeSubscription = {
   livemode: false,
   status: "active",
   created: 123,
-  items: { data: [{ price: prices[0], quantity: 1 }] },
+  cancel_at_period_end: false,
+  items: {
+    data: [{ price: prices[0], quantity: 1, current_period_end: 4102444800 }],
+  },
 } as Stripe.Subscription;
 
 describe("isolated Stripe billing", () => {
@@ -115,20 +133,33 @@ describe("isolated Stripe billing", () => {
     mocks.subscriptions.mockResolvedValue({ data: [], has_more: false });
     mocks.checkoutList.mockResolvedValue({ data: [], has_more: false });
     mocks.checkoutCreate.mockResolvedValue({
-      url: "https://checkout.stripe.com/test",
+      client_secret: "cs_test_secret",
       livemode: false,
     });
-    mocks.portalConfigurations.mockResolvedValue({
-      data: [
-        {
-          id: "bpc_test",
-          livemode: false,
-          metadata: { anthon: "stripe-eur-test" },
-        },
-      ],
+    mocks.retrieveCustomer.mockResolvedValue({
+      id: "cus_user",
+      livemode: false,
+      metadata: { anthonUserId: "user-1" },
+      invoice_settings: { default_payment_method: "pm_card" },
     });
-    mocks.portalCreate.mockResolvedValue({
-      url: "https://billing.stripe.com/test",
+    mocks.paymentMethod.mockResolvedValue({
+      id: "pm_card",
+      customer: "cus_user",
+      livemode: false,
+      type: "card",
+      card: { brand: "visa", last4: "4242", exp_month: 12, exp_year: 2030 },
+    });
+    mocks.invoices.mockResolvedValue({ data: [] });
+    mocks.setupCreate.mockResolvedValue({
+      client_secret: "seti_secret",
+      livemode: false,
+    });
+    mocks.setupRetrieve.mockResolvedValue({
+      customer: "cus_user",
+      livemode: false,
+      status: "succeeded",
+      metadata: { anthonUserId: "user-1" },
+      payment_method: "pm_card",
     });
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -176,6 +207,7 @@ describe("isolated Stripe billing", () => {
     expect(mocks.checkoutCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         customer: "cus_user",
+        ui_mode: "elements",
         currency: "eur",
         adaptive_pricing: { enabled: false },
         allow_promotion_codes: true,
@@ -186,19 +218,22 @@ describe("isolated Stripe billing", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("reuses pending checkout, expires a different plan and routes subscribers to their portal", async () => {
+  it("reuses elements checkout, expires other sessions and routes subscribers to local settings", async () => {
     mocks.checkoutList.mockResolvedValue({
       data: [
         {
           id: "cs_open",
           metadata: { anthonPlan: "basic" },
-          url: "https://checkout.stripe.com/existing",
+          ui_mode: "elements",
+          client_secret: "cs_existing_secret",
           livemode: false,
         },
       ],
       has_more: false,
     });
-    expect(await createStripeCheckout("user-1", "basic")).toContain("existing");
+    expect(await createStripeCheckout("user-1", "basic")).toEqual({
+      clientSecret: "cs_existing_secret",
+    });
     expect(mocks.checkoutCreate).not.toHaveBeenCalled();
     await createStripeCheckout("user-1", "basic_plus");
     expect(mocks.expire).toHaveBeenCalledWith("cs_open");
@@ -206,16 +241,229 @@ describe("isolated Stripe billing", () => {
       data: [activeSubscription],
       has_more: false,
     });
-    expect(await createStripeCheckout("user-1", "basic")).toContain(
-      "billing.stripe.com",
-    );
-    expect(mocks.portalCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ customer: "cus_user" }),
-    );
-    await createStripePortal("user-1");
-    expect(mocks.findSubscription).toHaveBeenLastCalledWith({
-      where: { userId: "user-1" },
+    expect(await createStripeCheckout("user-1", "basic")).toEqual({
+      url: "/profile?tab=billing",
     });
+  });
+
+  it("expires hosted sessions even for the selected plan", async () => {
+    mocks.checkoutList.mockResolvedValue({
+      has_more: false,
+      data: [
+        {
+          id: "cs_hosted",
+          ui_mode: "hosted",
+          metadata: { anthonPlan: "basic" },
+          url: "https://checkout.stripe.com/old",
+          livemode: false,
+        },
+      ],
+    });
+    expect(await createStripeCheckout("user-1", "basic")).toEqual({
+      clientSecret: "cs_test_secret",
+    });
+    expect(mocks.expire).toHaveBeenCalledWith("cs_hosted");
+  });
+
+  it("summarizes only the account's subscription, card and invoices without changing access", async () => {
+    mocks.subscriptions.mockResolvedValue({
+      data: [activeSubscription],
+      has_more: false,
+    });
+    mocks.invoices.mockResolvedValue({
+      data: [
+        {
+          id: "in_paid",
+          customer: "cus_user",
+          livemode: false,
+          number: "001",
+          created: 123,
+          total: 1499,
+          currency: "eur",
+          status: "paid",
+          invoice_pdf: "https://pay.stripe.com/invoice.pdf",
+        },
+      ],
+    });
+    expect(await getStripeBillingSummary("user-1")).toEqual({
+      subscription: {
+        plan: "basic",
+        name: "Basic",
+        amount: 1999,
+        currency: "eur",
+        status: "active",
+        currentPeriodEnd: 4102444800,
+        cancelAtPeriodEnd: false,
+      },
+      paymentMethod: {
+        brand: "visa",
+        last4: "4242",
+        expMonth: 12,
+        expYear: 2030,
+      },
+      invoices: [
+        {
+          id: "in_paid",
+          number: "001",
+          date: 123,
+          amount: 1499,
+          currency: "eur",
+          status: "paid",
+          downloadUrl: "https://pay.stripe.com/invoice.pdf",
+        },
+      ],
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.updateCustomer).not.toHaveBeenCalled();
+  });
+
+  it("schedules and resumes renewal without revoking paid access or prorating", async () => {
+    mocks.subscriptions.mockResolvedValue({
+      data: [activeSubscription],
+      has_more: false,
+    });
+    await setStripeCancellation("user-1", true);
+    expect(mocks.updateSubscription).toHaveBeenLastCalledWith("sub_paid", {
+      cancel_at_period_end: true,
+      proration_behavior: "none",
+    });
+    await setStripeCancellation("user-1", false);
+    expect(mocks.updateSubscription).toHaveBeenLastCalledWith("sub_paid", {
+      cancel_at_period_end: false,
+      proration_behavior: "none",
+    });
+    expect(mocks.update).not.toHaveBeenCalled();
+    mocks.subscriptions.mockResolvedValue({
+      data: [{ ...activeSubscription, status: "canceled" }],
+      has_more: false,
+    });
+    await expect(setStripeCancellation("user-1", false)).rejects.toThrow(
+      "renewable",
+    );
+  });
+
+  it("uses an owned successful setup intent for both future invoice defaults", async () => {
+    mocks.subscriptions.mockResolvedValue({
+      data: [activeSubscription],
+      has_more: false,
+    });
+    expect(await createStripePaymentMethodSetup("user-1")).toEqual({
+      clientSecret: "seti_secret",
+    });
+    expect(mocks.setupCreate).toHaveBeenCalledWith({
+      customer: "cus_user",
+      payment_method_types: ["card"],
+      usage: "off_session",
+      metadata: { anthonUserId: "user-1" },
+    });
+    await confirmStripePaymentMethod("user-1", "seti_owned");
+    expect(mocks.updateCustomer).toHaveBeenCalledWith("cus_user", {
+      invoice_settings: { default_payment_method: "pm_card" },
+    });
+    expect(mocks.updateSubscription).toHaveBeenCalledWith("sub_paid", {
+      default_payment_method: "pm_card",
+      proration_behavior: "none",
+    });
+  });
+
+  it("returns an empty summary without creating a customer and cannot resume expired paid time", async () => {
+    mocks.findSubscription.mockResolvedValueOnce(null);
+    expect(await getStripeBillingSummary("user-1")).toEqual({
+      subscription: null,
+      paymentMethod: null,
+      invoices: [],
+    });
+    expect(mocks.customers).not.toHaveBeenCalled();
+    mocks.subscriptions.mockResolvedValue({
+      data: [
+        {
+          ...activeSubscription,
+          items: {
+            data: [
+              { ...activeSubscription.items.data[0], current_period_end: 1 },
+            ],
+          },
+        },
+      ],
+      has_more: false,
+    });
+    await expect(setStripeCancellation("user-1", false)).rejects.toThrow(
+      "renewable",
+    );
+    expect(mocks.updateSubscription).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for foreign or multiple subscriptions and can retry a partial card-default update", async () => {
+    mocks.subscriptions.mockResolvedValueOnce({
+      data: [{ ...activeSubscription, customer: "cus_victim" }],
+      has_more: false,
+    });
+    await expect(setStripeCancellation("user-1", true)).rejects.toThrow(
+      "Unexpected personal subscription",
+    );
+    mocks.subscriptions.mockResolvedValueOnce({
+      data: [
+        activeSubscription,
+        { ...activeSubscription, id: "sub_duplicate" },
+      ],
+      has_more: false,
+    });
+    await expect(setStripeCancellation("user-1", true)).rejects.toThrow(
+      "Multiple personal subscriptions",
+    );
+    mocks.subscriptions.mockResolvedValue({
+      data: [activeSubscription],
+      has_more: false,
+    });
+    mocks.updateSubscription.mockRejectedValueOnce(
+      new Error("Network unavailable"),
+    );
+    await expect(
+      confirmStripePaymentMethod("user-1", "seti_owned"),
+    ).rejects.toThrow("Network unavailable");
+    await expect(
+      confirmStripePaymentMethod("user-1", "seti_owned"),
+    ).resolves.toBeUndefined();
+    expect(mocks.updateCustomer).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects foreign, incomplete and live setup intents and detached payment methods", async () => {
+    for (const override of [
+      { customer: "cus_victim" },
+      { status: "requires_payment_method" },
+      { livemode: true },
+      { metadata: { anthonUserId: "victim" } },
+    ]) {
+      mocks.setupRetrieve.mockResolvedValueOnce({
+        customer: "cus_user",
+        status: "succeeded",
+        livemode: false,
+        payment_method: "pm_card",
+        metadata: { anthonUserId: "user-1" },
+        ...override,
+      });
+      await expect(
+        confirmStripePaymentMethod("user-1", "seti_untrusted"),
+      ).rejects.toThrow("setup intent");
+    }
+    mocks.paymentMethod.mockResolvedValueOnce({
+      customer: null,
+      livemode: false,
+      type: "card",
+    });
+    await expect(
+      confirmStripePaymentMethod("user-1", "seti_owned"),
+    ).rejects.toThrow("payment method ownership");
+    expect(mocks.updateCustomer).not.toHaveBeenCalled();
+    expect(mocks.updateSubscription).not.toHaveBeenCalled();
+    mocks.retrieveCustomer.mockResolvedValueOnce({
+      id: "cus_user",
+      livemode: false,
+      metadata: { anthonUserId: "victim" },
+    });
+    await expect(getStripeBillingSummary("user-1")).rejects.toThrow(
+      "customer ownership",
+    );
   });
 
   it("rejects deleted users and incomplete subscription collections", async () => {

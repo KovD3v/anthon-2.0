@@ -1,8 +1,42 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountConsole } from "./AccountConsole";
+
+vi.mock("next/navigation", async () => {
+  const { useSyncExternalStore } = await import("react");
+  return {
+    useSearchParams: () =>
+      new URLSearchParams(
+        useSyncExternalStore(
+          (callback) => {
+            window.addEventListener("popstate", callback);
+            return () => window.removeEventListener("popstate", callback);
+          },
+          () => window.location.search,
+        ),
+      ),
+  };
+});
+vi.mock("./BillingSection", () => ({
+  BillingSection: () => <section aria-label="Gestione abbonamento" />,
+}));
+
+beforeEach(() => {
+  window.history.replaceState(null, "", "/profile");
+  const push = window.history.pushState.bind(window.history);
+  vi.spyOn(window.history, "pushState").mockImplementation((...args) => {
+    push(...args);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+});
 
 vi.mock("@clerk/nextjs", () => ({
   useUser: () => ({
@@ -50,9 +84,41 @@ vi.mock("./ConnectedAccountsSection", () => ({
   ConnectedAccountsSection: () => <section aria-label="Account collegati" />,
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("AccountConsole", () => {
+  it("keeps Stripe management absent in production even for a billing deeplink", () => {
+    window.history.replaceState(null, "", "/profile?tab=billing");
+    render(<AccountConsole />);
+    expect(screen.queryByRole("tab", { name: "Abbonamento" })).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Profilo account" }),
+    ).toBeTruthy();
+  });
+
+  it("follows billing deeplinks and browser history in test mode", () => {
+    window.history.replaceState(null, "", "/profile?tab=billing");
+    render(<AccountConsole isStripeTestBilling />);
+    expect(
+      screen
+        .getByRole("tab", { name: "Abbonamento" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: "Anthon" }));
+    expect(window.location.search).toBe("?tab=anthon");
+    act(() => {
+      window.history.replaceState(null, "", "/profile?tab=billing");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(
+      screen
+        .getByRole("tab", { name: "Abbonamento" })
+        .getAttribute("aria-selected"),
+    ).toBe("true");
+  });
   it("renders the native account tabs and profile content", () => {
     render(<AccountConsole />);
 

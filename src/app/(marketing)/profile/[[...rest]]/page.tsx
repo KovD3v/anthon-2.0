@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getAuthUser } from "@/lib/auth";
+import { isStripeTestBilling } from "@/lib/billing/config";
 import { requireCompletedOnboardingPage } from "@/lib/onboarding/gate";
 import { ProfileClient } from "./profile-client";
 
@@ -15,5 +16,5 @@ export default async function ProfilePage() {
   if (!user) redirect("/sign-in?redirect_url=/profile");
   requireCompletedOnboardingPage(user, "/profile");
 
-  return <ProfileClient />;
+  return <ProfileClient isStripeTestBilling={isStripeTestBilling()} />;
 }

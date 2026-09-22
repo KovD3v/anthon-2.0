@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import type { SubscriptionStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
 import { assertStripeTestEnvironment, getStripeTestOrigin } from "./config";
+import type { StripeBillingSummary } from "./contracts";
 import {
   getStripeTestPrices,
   STRIPE_TEST_PLANS,
@@ -76,25 +77,6 @@ async function subscriptionsForCustomer(stripe: Stripe, customer: string) {
   return result.data;
 }
 
-async function portalUrl(stripe: Stripe, customer: string): Promise<string> {
-  const configurations = await stripe.billingPortal.configurations.list({
-    active: true,
-    limit: 100,
-  });
-  const configuration = configurations.data.find(
-    (item) => item.metadata?.anthon === "stripe-eur-test",
-  );
-  if (!configuration || configuration.livemode)
-    throw new Error("Stripe test portal is not configured");
-  const portal = await stripe.billingPortal.sessions.create({
-    customer,
-    configuration: configuration.id,
-    return_url: `${getStripeTestOrigin()}/pricing`,
-    locale: "it",
-  });
-  return portal.url;
-}
-
 export async function createStripeCheckout(
   userId: string,
   plan: StripePlanKey,
@@ -112,7 +94,7 @@ export async function createStripeCheckout(
         (item) => !["canceled", "incomplete_expired"].includes(item.status),
       )
     ) {
-      return portalUrl(stripe, customer);
+      return { url: "/profile?tab=billing" };
     }
     const open = await stripe.checkout.sessions.list({
       customer,
@@ -120,18 +102,24 @@ export async function createStripeCheckout(
       limit: 100,
     });
     if (open.has_more) throw new Error("Too many open checkouts");
+    if (open.data.some((session) => session.livemode))
+      throw new Error("Live checkout rejected");
     const pending = open.data.find(
-      (session) => session.metadata?.anthonPlan === plan,
+      (session) =>
+        session.metadata?.anthonPlan === plan &&
+        session.ui_mode === "elements" &&
+        session.client_secret,
     );
-    if (pending?.url && !pending.livemode) return pending.url;
     // One open checkout per account prevents parallel purchases of two plans.
     for (const session of open.data) {
-      if (session.livemode) throw new Error("Live checkout rejected");
+      if (session.id === pending?.id) continue;
       await stripe.checkout.sessions.expire(session.id);
     }
+    if (pending?.client_secret) return { clientSecret: pending.client_secret };
     const checkout = await stripe.checkout.sessions.create({
       customer,
       mode: "subscription",
+      ui_mode: "elements",
       currency: "eur",
       adaptive_pricing: { enabled: false },
       payment_method_types: ["card"],
@@ -141,21 +129,194 @@ export async function createStripeCheckout(
       subscription_data: { metadata: { anthonUserId: userId } },
       client_reference_id: userId,
       locale: "it",
-      success_url: `${origin}/pricing?checkout=complete`,
-      cancel_url: `${origin}/pricing?checkout=canceled`,
+      return_url: `${origin}/profile?tab=billing&checkout=complete`,
     });
-    if (!checkout.url || checkout.livemode)
+    if (!checkout.client_secret || checkout.livemode)
       throw new Error("Invalid test checkout");
-    return checkout.url;
+    return { clientSecret: checkout.client_secret };
   });
 }
 
-export async function createStripePortal(userId: string) {
+async function ownedCustomer(stripe: Stripe, tx: Transaction, userId: string) {
+  const user = await tx.user.findUnique({ where: { id: userId } });
+  if (!user || user.isGuest || user.deletedAt)
+    throw new Error("Invalid billing account");
+  const current = await tx.subscription.findUnique({ where: { userId } });
+  if (!current?.stripeCustomerId) return null;
+  const customer = await stripe.customers.retrieve(current.stripeCustomerId);
+  if (
+    customer.deleted ||
+    customer.livemode ||
+    customer.metadata.anthonUserId !== userId
+  )
+    throw new Error("Invalid billing customer ownership");
+  return customer;
+}
+
+async function personalSubscription(stripe: Stripe, customer: string) {
+  const prices = await getStripeTestPrices(stripe);
+  const subscriptions = await subscriptionsForCustomer(stripe, customer);
+  const ongoing = subscriptions.filter(
+    (item) => !["canceled", "incomplete_expired"].includes(item.status),
+  );
+  if (ongoing.length > 1) throw new Error("Multiple personal subscriptions");
+  const subscription =
+    ongoing[0] ?? subscriptions.sort((a, b) => b.created - a.created)[0];
+  if (!subscription) return null;
+  const selected = prices.find(
+    ({ price }) => price.id === subscription.items.data[0]?.price.id,
+  );
+  if (
+    !selected ||
+    subscription.items.data.length !== 1 ||
+    subscription.items.data[0].quantity !== 1 ||
+    subscription.customer !== customer
+  )
+    throw new Error("Unexpected personal subscription");
+  return { subscription, selected };
+}
+
+export async function getStripeBillingSummary(
+  userId: string,
+): Promise<StripeBillingSummary> {
   const stripe = getStripe();
-  const current = await prisma.subscription.findUnique({ where: { userId } });
-  if (!current?.stripeCustomerId)
-    throw new Error("No Stripe customer for this account");
-  return portalUrl(stripe, current.stripeCustomerId);
+  const customer = await ownedCustomer(stripe, prisma, userId);
+  if (!customer)
+    return { subscription: null, paymentMethod: null, invoices: [] };
+  const personal = await personalSubscription(stripe, customer.id);
+  const method =
+    personal?.subscription.default_payment_method ??
+    customer.invoice_settings.default_payment_method;
+  const paymentMethod =
+    typeof method === "string"
+      ? await stripe.paymentMethods.retrieve(method)
+      : method;
+  if (
+    paymentMethod &&
+    (paymentMethod.livemode || paymentMethod.customer !== customer.id)
+  )
+    throw new Error("Invalid payment method ownership");
+  // ponytail: latest 12 invoices; paginate when longer history is needed.
+  const invoices = await stripe.invoices.list({
+    customer: customer.id,
+    limit: 12,
+  });
+  if (
+    invoices.data.some(
+      (invoice) => invoice.livemode || invoice.customer !== customer.id,
+    )
+  )
+    throw new Error("Invalid invoice ownership");
+  const card = paymentMethod?.card;
+  return {
+    subscription: personal
+      ? {
+          plan: personal.selected.key,
+          name: STRIPE_TEST_PLANS[personal.selected.key].name,
+          amount: STRIPE_TEST_PLANS[personal.selected.key].amount,
+          currency: "eur",
+          status: personal.subscription.status,
+          currentPeriodEnd:
+            personal.subscription.items.data[0].current_period_end,
+          cancelAtPeriodEnd: personal.subscription.cancel_at_period_end,
+        }
+      : null,
+    paymentMethod: card
+      ? {
+          brand: card.brand,
+          last4: card.last4,
+          expMonth: card.exp_month,
+          expYear: card.exp_year,
+        }
+      : null,
+    invoices: invoices.data.map((invoice) => ({
+      id: invoice.id,
+      number: invoice.number,
+      date: invoice.created,
+      amount: invoice.total,
+      currency: invoice.currency,
+      status: invoice.status,
+      downloadUrl: invoice.invoice_pdf ?? null,
+    })),
+  };
+}
+
+export async function setStripeCancellation(userId: string, cancel: boolean) {
+  const stripe = getStripe();
+  await withUserLock(userId, async (tx) => {
+    const customer = await ownedCustomer(stripe, tx, userId);
+    if (!customer) throw new Error("No billing customer");
+    const personal = await personalSubscription(stripe, customer.id);
+    if (
+      !personal ||
+      !["active", "past_due"].includes(personal.subscription.status) ||
+      (!cancel &&
+        personal.subscription.items.data[0].current_period_end <=
+          Math.floor(Date.now() / 1000))
+    )
+      throw new Error("No renewable subscription");
+    await stripe.subscriptions.update(personal.subscription.id, {
+      cancel_at_period_end: cancel,
+      proration_behavior: "none",
+    });
+  });
+}
+
+export async function createStripePaymentMethodSetup(userId: string) {
+  const stripe = getStripe();
+  return withUserLock(userId, async (tx) => {
+    const customer = await ownedCustomer(stripe, tx, userId);
+    if (!customer) throw new Error("No billing customer");
+    const intent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ["card"],
+      usage: "off_session",
+      metadata: { anthonUserId: userId },
+    });
+    if (intent.livemode || !intent.client_secret)
+      throw new Error("Invalid setup intent");
+    return { clientSecret: intent.client_secret };
+  });
+}
+
+export async function confirmStripePaymentMethod(
+  userId: string,
+  setupIntentId: string,
+) {
+  const stripe = getStripe();
+  await withUserLock(userId, async (tx) => {
+    const customer = await ownedCustomer(stripe, tx, userId);
+    if (!customer) throw new Error("No billing customer");
+    const intent = await stripe.setupIntents.retrieve(setupIntentId);
+    if (
+      intent.livemode ||
+      intent.status !== "succeeded" ||
+      intent.customer !== customer.id ||
+      intent.metadata?.anthonUserId !== userId ||
+      typeof intent.payment_method !== "string"
+    )
+      throw new Error("Invalid setup intent ownership or state");
+    const method = await stripe.paymentMethods.retrieve(intent.payment_method);
+    if (
+      method.livemode ||
+      method.customer !== customer.id ||
+      method.type !== "card"
+    )
+      throw new Error("Invalid payment method ownership");
+    const personal = await personalSubscription(stripe, customer.id);
+    // Both writes are idempotent: retry after either request fails.
+    await stripe.customers.update(customer.id, {
+      invoice_settings: { default_payment_method: method.id },
+    });
+    if (
+      personal &&
+      !["canceled", "incomplete_expired"].includes(personal.subscription.status)
+    )
+      await stripe.subscriptions.update(personal.subscription.id, {
+        default_payment_method: method.id,
+        proration_behavior: "none",
+      });
+  });
 }
 
 export function stripeSubscriptionState(

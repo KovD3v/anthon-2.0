@@ -1,8 +1,5 @@
 import Stripe from "stripe";
-import {
-  assertStripeTestEnvironment,
-  getStripeTestOrigin,
-} from "../src/lib/billing/config";
+import { assertStripeTestEnvironment } from "../src/lib/billing/config";
 import {
   getStripeTestPrices,
   STRIPE_TEST_PLANS,
@@ -123,47 +120,6 @@ if (
 )
   throw new Error("Unexpected launch code; no changes made to it");
 
-const configurations = await stripe.billingPortal.configurations.list({
-  limit: 100,
-});
-if (configurations.has_more) throw new Error("Too many portal configurations");
-const matches = configurations.data.filter(
-  (item) => item.metadata?.anthon === metadata.anthon,
-);
-if (matches.length > 1) throw new Error("Ambiguous test portal");
-const portal =
-  matches[0] ??
-  (await stripe.billingPortal.configurations.create(
-    {
-      name: "Anthon EUR test",
-      business_profile: { headline: "Anthon · gestione abbonamento di test" },
-      default_return_url: `${getStripeTestOrigin()}/pricing`,
-      features: {
-        customer_update: {
-          enabled: true,
-          allowed_updates: ["email", "name", "address"],
-        },
-        invoice_history: { enabled: true },
-        payment_method_update: { enabled: true },
-        subscription_cancel: {
-          enabled: true,
-          mode: "at_period_end",
-          proration_behavior: "none",
-        },
-        subscription_update: { enabled: false },
-      },
-      metadata,
-    },
-    { idempotencyKey: "anthon-eur-test-portal" },
-  ));
-if (
-  portal.livemode ||
-  !portal.active ||
-  !portal.features.subscription_cancel.enabled ||
-  portal.features.subscription_cancel.mode !== "at_period_end"
-)
-  throw new Error("Unexpected test portal");
-
 const prices = await getStripeTestPrices(stripe);
 console.log(
   JSON.stringify(
@@ -185,7 +141,6 @@ console.log(
         active: promotion.active,
         expiresAt: new Date(promotion.expires_at * 1000).toISOString(),
       },
-      portal: portal.id,
     },
     null,
     2,

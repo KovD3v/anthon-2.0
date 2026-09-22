@@ -2,8 +2,11 @@ import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
 import { getStripeTestOrigin, isStripeTestBilling } from "@/lib/billing/config";
 import {
+  confirmStripePaymentMethod,
   createStripeCheckout,
-  createStripePortal,
+  createStripePaymentMethodSetup,
+  getStripeBillingSummary,
+  setStripeCancellation,
   syncPersonalSubscriptionFromStripe,
 } from "@/lib/billing/stripe";
 import { createLogger } from "@/lib/logger";
@@ -16,9 +19,45 @@ const input = z.discriminatedUnion("action", [
       plan: z.enum(["basic", "basic_plus"]),
     })
     .strict(),
-  z.object({ action: z.literal("portal") }).strict(),
+  z.object({ action: z.literal("cancel") }).strict(),
+  z.object({ action: z.literal("resume") }).strict(),
+  z.object({ action: z.literal("setup_payment_method") }).strict(),
+  z
+    .object({
+      action: z.literal("confirm_payment_method"),
+      setupIntentId: z
+        .string()
+        .regex(/^seti_[A-Za-z0-9]+$/)
+        .max(255),
+    })
+    .strict(),
   z.object({ action: z.literal("refresh") }).strict(),
 ]);
+
+export async function GET() {
+  const headers = { "Cache-Control": "private, no-store" };
+  if (!isStripeTestBilling())
+    return new Response(null, { status: 404, headers });
+  try {
+    const { user } = await getAuthUser();
+    if (!user || user.isGuest)
+      return Response.json(
+        { error: "Accedi per continuare." },
+        { status: 401, headers },
+      );
+    return Response.json(await getStripeBillingSummary(user.id), { headers });
+  } catch (error) {
+    logger.error(
+      "billing.stripe.summary_failed",
+      "Stripe test billing summary failed",
+      { error },
+    );
+    return Response.json(
+      { error: "Fatturazione di test non disponibile. Riprova tra poco." },
+      { status: 503, headers },
+    );
+  }
+}
 
 export async function POST(request: Request) {
   if (!isStripeTestBilling()) return new Response(null, { status: 404 });
@@ -52,11 +91,16 @@ export async function POST(request: Request) {
     if (parsed.data.action === "refresh") {
       return Response.json(await syncPersonalSubscriptionFromStripe(user.id));
     }
-    const url =
-      parsed.data.action === "portal"
-        ? await createStripePortal(user.id)
-        : await createStripeCheckout(user.id, parsed.data.plan);
-    return Response.json({ url });
+    if (parsed.data.action === "checkout")
+      return Response.json(
+        await createStripeCheckout(user.id, parsed.data.plan),
+      );
+    if (parsed.data.action === "setup_payment_method")
+      return Response.json(await createStripePaymentMethodSetup(user.id));
+    if (parsed.data.action === "confirm_payment_method")
+      await confirmStripePaymentMethod(user.id, parsed.data.setupIntentId);
+    else await setStripeCancellation(user.id, parsed.data.action === "cancel");
+    return Response.json({ ok: true });
   } catch (error) {
     logger.error(
       "billing.stripe.request_failed",

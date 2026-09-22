@@ -2,7 +2,8 @@
 
 import { useUser } from "@clerk/nextjs";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CoachingContextSection } from "./CoachingContextSection";
@@ -14,6 +15,15 @@ import { SecuritySection } from "./SecuritySection";
 import { SessionsSection } from "./SessionsSection";
 import { UsageSection } from "./UsageSection";
 
+const BillingSection = dynamic(
+  () => import("./BillingSection").then((module) => module.BillingSection),
+  {
+    loading: () => (
+      <output className="block p-8">Caricamento abbonamento…</output>
+    ),
+  },
+);
+
 const accountTabs = [
   ["profile", "Profilo"],
   ["anthon", "Anthon"],
@@ -22,9 +32,19 @@ const accountTabs = [
   ["connected", "Account collegati"],
 ] as const;
 
-export function AccountConsole() {
+export function AccountConsole({
+  isStripeTestBilling = false,
+}: {
+  isStripeTestBilling?: boolean;
+}) {
   const { isLoaded, user } = useUser();
-  const [activeTab, setActiveTab] = useState("profile");
+  const searchParams = useSearchParams();
+  const tabs = isStripeTestBilling
+    ? [...accountTabs, ["billing", "Abbonamento"] as const]
+    : accountTabs;
+  const requestedTab = searchParams.get("tab");
+  const activeTab =
+    tabs.find(([value]) => value === requestedTab)?.[0] ?? "profile";
 
   if (!isLoaded) {
     return (
@@ -118,18 +138,22 @@ export function AccountConsole() {
 
       <Tabs
         value={activeTab}
-        onValueChange={(value) => setActiveTab(String(value))}
+        onValueChange={(value) => {
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", String(value));
+          window.history.pushState(null, "", url);
+        }}
         className="mt-5 w-full flex-col sm:mt-7"
       >
         <TabsList
           aria-label="Sezioni del profilo"
           className="grid h-auto w-full grid-cols-6 gap-1 rounded-xl bg-[#171714] p-1.5 text-white md:flex md:justify-start md:overflow-x-auto md:rounded-2xl"
         >
-          {accountTabs.map(([value, label], index) => (
+          {tabs.map(([value, label], index) => (
             <TabsTrigger
               key={value}
               value={value}
-              className={`${index < 3 ? "col-span-2" : "col-span-3"} min-h-11 w-full rounded-lg px-2 text-sm leading-tight text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] md:col-span-1 md:w-auto md:flex-none md:rounded-xl md:px-4 dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]`}
+              className={`${isStripeTestBilling || index < 3 ? "col-span-2" : "col-span-3"} min-h-11 w-full rounded-lg px-2 text-sm leading-tight text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] md:col-span-1 md:w-auto md:flex-none md:rounded-xl md:px-4 dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]`}
             >
               {label}
             </TabsTrigger>
@@ -183,6 +207,14 @@ export function AccountConsole() {
             <ConnectedAccountsSection />
           </section>
         </TabsContent>
+        {isStripeTestBilling ? (
+          <TabsContent
+            value="billing"
+            className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"
+          >
+            {activeTab === "billing" ? <BillingSection /> : null}
+          </TabsContent>
+        ) : null}
       </Tabs>
     </section>
   );

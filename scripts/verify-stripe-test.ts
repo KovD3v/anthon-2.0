@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import { setTimeout } from "node:timers/promises";
+import { getStripeTestOrigin } from "../src/lib/billing/config";
 import {
+  confirmStripePaymentMethod,
+  createStripeCheckout,
+  createStripePaymentMethodSetup,
   getStripe,
+  getStripeBillingSummary,
+  setStripeCancellation,
   syncPersonalSubscriptionFromStripe,
   withStripeAccountDeletion,
 } from "../src/lib/billing/stripe";
@@ -46,6 +52,56 @@ async function verify() {
       },
     });
     userId = user.id;
+    await stripe.customers.update(customer.id, {
+      metadata: { anthonUserId: user.id },
+    });
+    const checkout = await createStripeCheckout(user.id, "basic_plus");
+    assert(
+      "clientSecret" in checkout && checkout.clientSecret,
+      "Checkout must return a client secret",
+    );
+    const sessions = await stripe.checkout.sessions.list({
+      customer: customer.id,
+      status: "open",
+      limit: 10,
+    });
+    assert.equal(sessions.data.length, 1);
+    const session = sessions.data[0];
+    assert.equal(session.ui_mode, "elements");
+    assert.equal(session.currency, "eur");
+    assert.equal(session.customer, customer.id);
+    assert.equal(
+      session.return_url,
+      `${getStripeTestOrigin()}/profile?tab=billing&checkout=complete`,
+    );
+    // Boolean assertions avoid printing client secrets on a failed comparison.
+    assert(
+      session.client_secret === checkout.clientSecret,
+      "Checkout secret must match its session",
+    );
+    const reused = await createStripeCheckout(user.id, "basic_plus");
+    assert(
+      "clientSecret" in reused && reused.clientSecret === checkout.clientSecret,
+      "Repeated checkout must reuse the session",
+    );
+    assert.equal(
+      (
+        await stripe.checkout.sessions.list({
+          customer: customer.id,
+          status: "open",
+          limit: 10,
+        })
+      ).data.length,
+      1,
+    );
+    await stripe.checkout.sessions.expire(session.id);
+    assert.equal(
+      (await stripe.checkout.sessions.retrieve(session.id)).status,
+      "expired",
+    );
+    console.log(
+      "PASS: real EUR Elements checkout created, reused and expired for the synthetic customer.",
+    );
     const subscription = await stripe.subscriptions.create({
       customer: customer.id,
       items: [{ price: plus.price.id }],
@@ -92,6 +148,79 @@ async function verify() {
       "PASS: Basic Plus first invoice EUR 24.99; real signed webhook activated access.",
     );
 
+    const summary = await getStripeBillingSummary(user.id);
+    assert.deepEqual(summary.subscription, {
+      plan: "basic_plus",
+      name: "Basic Plus",
+      amount: 2999,
+      currency: "eur",
+      status: "active",
+      currentPeriodEnd: subscription.items.data[0].current_period_end,
+      cancelAtPeriodEnd: false,
+    });
+    assert.equal(summary.paymentMethod?.brand, "visa");
+    assert.equal(summary.paymentMethod.last4, "4242");
+    const displayedInvoice = summary.invoices.find(
+      (invoice) => invoice.id === firstInvoice.id,
+    );
+    assert(displayedInvoice);
+    assert.equal(displayedInvoice.amount, 2499);
+    assert.equal(displayedInvoice.status, "paid");
+    assert.equal(displayedInvoice.currency, "eur");
+    assert.equal(displayedInvoice.date, firstInvoice.created);
+
+    const setup = await createStripePaymentMethodSetup(user.id);
+    const setupIntentId = setup.clientSecret.split("_secret_")[0];
+    assert(setupIntentId.startsWith("seti_"));
+    const confirmed = await stripe.setupIntents.confirm(setupIntentId, {
+      payment_method: "pm_card_mastercard",
+    });
+    assert.equal(confirmed.status, "succeeded");
+    assert.equal(typeof confirmed.payment_method, "string");
+    await confirmStripePaymentMethod(user.id, setupIntentId);
+    const updatedCustomer = await stripe.customers.retrieve(customer.id);
+    assert(!updatedCustomer.deleted);
+    assert.equal(
+      updatedCustomer.invoice_settings.default_payment_method,
+      confirmed.payment_method,
+    );
+    assert.equal(
+      (await stripe.subscriptions.retrieve(subscription.id))
+        .default_payment_method,
+      confirmed.payment_method,
+    );
+    assert.equal(
+      (await getStripeBillingSummary(user.id)).paymentMethod?.brand,
+      "mastercard",
+    );
+
+    // This second customer belongs only to this clock and is removed with it.
+    const otherCustomer = await stripe.customers.create({
+      test_clock: clock.id,
+      metadata: { anthon: "billing-verification-foreign" },
+    });
+    const foreignIntent = await stripe.setupIntents.create({
+      customer: otherCustomer.id,
+      payment_method: "pm_card_visa",
+      payment_method_types: ["card"],
+      confirm: true,
+      usage: "off_session",
+      metadata: { anthonUserId: user.id },
+    });
+    assert.equal(foreignIntent.status, "succeeded");
+    await assert.rejects(
+      confirmStripePaymentMethod(user.id, foreignIntent.id),
+      /ownership/,
+    );
+    assert.equal(
+      (await stripe.subscriptions.retrieve(subscription.id))
+        .default_payment_method,
+      confirmed.payment_method,
+    );
+    console.log(
+      "PASS: settings summary, verified card replacement and foreign SetupIntent rejection.",
+    );
+
     await advance(subscription.items.data[0].current_period_end + 4 * 60 * 60);
     const invoices = await stripe.invoices.list({
       subscription: subscription.id,
@@ -114,15 +243,26 @@ async function verify() {
       "PASS: automatic renewal EUR 29.99; the EUR 5 discount was not repeated.",
     );
 
-    const ending = await stripe.subscriptions.update(subscription.id, {
-      cancel_at_period_end: true,
-    });
+    await setStripeCancellation(user.id, true);
+    assert.equal(
+      (await getStripeBillingSummary(user.id)).subscription?.cancelAtPeriodEnd,
+      true,
+    );
+    await setStripeCancellation(user.id, false);
+    assert.equal(
+      (await getStripeBillingSummary(user.id)).subscription?.cancelAtPeriodEnd,
+      false,
+    );
+    await setStripeCancellation(user.id, true);
+    const ending = await stripe.subscriptions.retrieve(subscription.id);
+    assert.equal(ending.cancel_at_period_end, true);
     assert.equal(
       (await syncPersonalSubscriptionFromStripe(user.id)).status,
       "ACTIVE",
     );
     await advance(ending.items.data[0].current_period_end + 60);
     await waitForAccess("CANCELED");
+    await assert.rejects(setStripeCancellation(user.id, false), /renewable/);
     console.log(
       "PASS: cancellation preserves paid time, then a signed webhook revokes access.",
     );
