@@ -587,7 +587,7 @@ describe("ai/memory-consolidator", () => {
       {
         id: "old-fact",
         key: "weekly_schedule",
-        value: { content: "Mi alleno giovedì" },
+        value: { content: "Mi alleno giovedì", _subject: "ACCOUNT_HOLDER" },
         category: "schedule",
         sensitivity: "LOW",
         observedAt: updatedAt,
@@ -609,6 +609,9 @@ describe("ai/memory-consolidator", () => {
         observedAt: sourceCreatedAt,
       }),
     );
+    expect(
+      mocks.requestTypedDecisions.mock.calls[0][0].state.existingFacts[0],
+    ).toMatchObject({ subject: "ACCOUNT_HOLDER" });
     expect(mocks.memoryFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ userId: "user-1", status: "ACTIVE" }),
@@ -616,6 +619,36 @@ describe("ai/memory-consolidator", () => {
       }),
     );
   });
+
+  it.each([undefined, null, "UNKNOWN", "account_holder"])(
+    "keeps invalid or absent stored subject metadata unknown: %s",
+    async (_subject) => {
+      enableReview({ match_0_0: "correction" });
+      const updatedAt = new Date("2026-09-01T00:00:00Z");
+      mocks.memoryFindMany.mockResolvedValue([
+        {
+          id: "old-fact",
+          key: "weekly_schedule",
+          value: { content: "Mi alleno giovedì", _subject },
+          category: "schedule",
+          sensitivity: "LOW",
+          observedAt: updatedAt,
+          updatedAt,
+          expiresAt: null,
+        },
+      ]);
+      const evidence = "Correggi: mi alleno ogni martedì sera";
+      mocks.extractMemoryCandidates.mockResolvedValue([
+        candidate({ evidence }),
+      ]);
+      await consolidateTurnMemory({ ...input, userText: evidence });
+      const request = mocks.requestTypedDecisions.mock.calls[0][0];
+      expect(Object.keys(request.questions)).not.toContain("match_0_0");
+      expect(mocks.rememberFact.mock.calls[0][0]).not.toHaveProperty(
+        "semanticMatch",
+      );
+    },
+  );
 
   it.each(["timeout", "invalid_output"])(
     "holds extraction after an active review %s",

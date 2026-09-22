@@ -49,6 +49,7 @@ function buildFact(
     id: string;
     key: string;
     content: string;
+    subject: "ACCOUNT_HOLDER" | "REFERENCED_PERSON";
     category: string;
     origin: "EXPLICIT" | "INFERRED" | "CONFIRMED" | "MIGRATED";
     confidence: number;
@@ -62,7 +63,10 @@ function buildFact(
     userId: "user-1",
     key: overrides.key ?? "training_schedule",
     category: overrides.category ?? "schedule",
-    value: { content: overrides.content ?? "Martedì sera" },
+    value: {
+      content: overrides.content ?? "Martedì sera",
+      ...(overrides.subject ? { _subject: overrides.subject } : {}),
+    },
     origin: overrides.origin ?? "EXPLICIT",
     confidence: overrides.confidence ?? 0.96,
     status: "ACTIVE" as const,
@@ -566,6 +570,7 @@ describe("durable fact recall", () => {
     userId: "user-1",
     key: "training_schedule",
     value: "Giovedì mattina",
+    subject: "ACCOUNT_HOLDER" as const,
     category: "schedule",
     confidence: 0.99,
     sensitivity: "LOW" as const,
@@ -581,9 +586,107 @@ describe("durable fact recall", () => {
     },
   };
 
+  it.each(["ACCOUNT_HOLDER", "REFERENCED_PERSON"] as const)(
+    "does not overwrite an explicitly %s fact with another subject at the same key",
+    async (previousSubject) => {
+      mocks.memoryFindFirst.mockResolvedValue({
+        ...buildFact(),
+        value: { content: "Martedì sera", _subject: previousSubject },
+      });
+      mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+      const subject =
+        previousSubject === "ACCOUNT_HOLDER"
+          ? "REFERENCED_PERSON"
+          : "ACCOUNT_HOLDER";
+      const { semanticMatch: _, ...input } = semanticInput;
+      expect(await rememberFact({ ...input, subject })).toEqual({
+        status: "rejected",
+      });
+      expect(mocks.executeRaw).toHaveBeenCalledOnce();
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+      expect(mocks.revisionCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([undefined, "REFERENCED_PERSON"] as const)(
+    "rechecks semantic target attribution under the mutation lock: %s",
+    async (subject) => {
+      mocks.memoryFindFirst.mockResolvedValue({
+        ...buildFact(),
+        value: { content: "Martedì sera", _subject: subject },
+      });
+      mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+      expect(await rememberFact(semanticInput)).toEqual({ status: "rejected" });
+      expect(mocks.executeRaw).toHaveBeenCalledOnce();
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows an ordinary exact-key update to an unattributed legacy fact", async () => {
+    mocks.memoryFindFirst.mockResolvedValue(buildFact());
+    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    const { semanticMatch: _, ...input } = semanticInput;
+    expect(await rememberFact(input)).toEqual({
+      status: "saved",
+      factId: "memory-1",
+    });
+  });
+
+  it.each(["remember", "revise"])(
+    "does not %s one explicitly referenced person over another with the same name",
+    async (operation) => {
+      mocks.memoryFindFirst.mockResolvedValue({
+        ...buildFact({ key: "person_anna_training" }),
+        value: {
+          content: "Anna (sorella): Si allena martedì",
+          _subject: "REFERENCED_PERSON",
+        },
+      });
+      mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+      mocks.memoryUpdate.mockResolvedValue({ id: "memory-1" });
+      const { semanticMatch: _, ...base } = semanticInput;
+      const input = {
+        ...base,
+        key: "person_anna_training",
+        value: "Anna (collega): Si allena giovedì",
+        subject: "REFERENCED_PERSON" as const,
+      };
+      expect(
+        operation === "remember"
+          ? await rememberFact(input)
+          : await reviseFact({ ...input, factId: "memory-1" }),
+      ).toEqual({ status: "rejected" });
+      expect(mocks.memoryUpsert).not.toHaveBeenCalled();
+      expect(mocks.memoryUpdate).not.toHaveBeenCalled();
+      expect(mocks.revisionCreate).not.toHaveBeenCalled();
+    },
+  );
+
+  it("allows a verified update for the same referenced-person descriptor", async () => {
+    mocks.memoryFindFirst.mockResolvedValue({
+      ...buildFact(),
+      value: {
+        content: "Anna (sorella): Si allena martedì",
+        _subject: "REFERENCED_PERSON",
+      },
+    });
+    mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
+    const { semanticMatch: _, ...input } = semanticInput;
+    expect(
+      await rememberFact({
+        ...input,
+        value: "Anna (sorella): Si allena giovedì",
+        subject: "REFERENCED_PERSON",
+      }),
+    ).toEqual({ status: "saved", factId: "memory-1" });
+  });
+
   it("reuses the fact and snapshots revision/expiry for a current semantic correction", async () => {
     mocks.memoryFindFirst.mockResolvedValue(
-      buildFact({ expiresAt: new Date("2099-01-01T00:00:00Z") }),
+      buildFact({
+        subject: "ACCOUNT_HOLDER",
+        expiresAt: new Date("2099-01-01T00:00:00Z"),
+      }),
     );
     mocks.memoryUpsert.mockResolvedValue({ id: "memory-1" });
     expect(await rememberFact(semanticInput)).toEqual({
@@ -610,7 +713,9 @@ describe("durable fact recall", () => {
   });
 
   it("checks the snapshot before discarding a semantic duplicate", async () => {
-    mocks.memoryFindFirst.mockResolvedValue(buildFact());
+    mocks.memoryFindFirst.mockResolvedValue(
+      buildFact({ subject: "ACCOUNT_HOLDER" }),
+    );
     expect(
       await rememberFact({
         ...semanticInput,
@@ -633,7 +738,10 @@ describe("durable fact recall", () => {
   ])(
     "rejects a semantic target changed or invalidated since review: %o",
     async (overrides) => {
-      mocks.memoryFindFirst.mockResolvedValue({ ...buildFact(), ...overrides });
+      mocks.memoryFindFirst.mockResolvedValue({
+        ...buildFact({ subject: "ACCOUNT_HOLDER" }),
+        ...overrides,
+      });
       expect(await rememberFact(semanticInput)).toEqual({ status: "rejected" });
       expect(mocks.memoryUpsert).not.toHaveBeenCalled();
       expect(mocks.revisionCreate).not.toHaveBeenCalled();
@@ -643,7 +751,9 @@ describe("durable fact recall", () => {
   it("does not create a missing semantic target or accept an inferred correction", async () => {
     mocks.memoryFindFirst.mockResolvedValue(null);
     expect((await rememberFact(semanticInput)).status).toBe("rejected");
-    mocks.memoryFindFirst.mockResolvedValue(buildFact());
+    mocks.memoryFindFirst.mockResolvedValue(
+      buildFact({ subject: "ACCOUNT_HOLDER" }),
+    );
     expect(
       (await rememberFact({ ...semanticInput, origin: "INFERRED" })).status,
     ).toBe("rejected");
@@ -652,7 +762,10 @@ describe("durable fact recall", () => {
 
   it("does not discard a semantic duplicate with a changed expiry", async () => {
     mocks.memoryFindFirst.mockResolvedValue(
-      buildFact({ expiresAt: new Date("2099-01-01T00:00:00Z") }),
+      buildFact({
+        subject: "ACCOUNT_HOLDER",
+        expiresAt: new Date("2099-01-01T00:00:00Z"),
+      }),
     );
     expect(
       (

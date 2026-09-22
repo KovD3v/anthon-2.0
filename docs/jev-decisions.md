@@ -70,10 +70,10 @@ to roll back. The existing `AI_MEMORY_GATE_MODE` and voice behavior are unchange
 Memory retrieval still requires the existing memory-recall release gate.
 
 Memory review has a 1,500 ms provider timeout and runs after the reply. Retrieval
-planning allows 750 ms and ranking 600 ms per call, without retries. The prompt
-recall path can add up to 1,350 ms of Jev work; a newly enabled thread search also
+planning allows 750 ms and ranking 800 ms per call, without retries. The prompt
+recall path can add up to 1,550 ms of Jev work; a newly enabled thread search also
 uses its existing 100 ms database budget. Each existing read-tool call can add
-600 ms independently. These are timeout bounds, not measured latency gains.
+800 ms independently. These are timeout bounds, not measured latency gains.
 
 Costs appear under `memory_review`, `retrieval_planning` and `retrieval_ranking`.
 Decision logs contain counts, timing and failure codes, without conversation text.
@@ -143,3 +143,5 @@ Choose `--corpus fresh|ready|followup|documents` for the fixed synthetic sets
 The [local readiness report](benchmarks/jev-readiness-2026-09-20.md) preserves all
 calibration attempts and fresh runs. Its all-check accuracy and document-ranking
 deadline gates remain unmet; successful unit tests do not establish model quality.
+
+The [22 September correctness review and retest](benchmarks/jev-followup-2026-09-22.md) records the 800 ms ranking results, memory attribution fixes and rejected answer-checker tuning.

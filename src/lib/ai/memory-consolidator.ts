@@ -218,8 +218,19 @@ export async function consolidateTurnMemory(input: {
         candidates: prepared,
         existingFacts: facts.flatMap(({ value, ...fact }) => {
           const content = (value as { content?: unknown } | null)?.content;
+          const subject = (value as { _subject?: unknown } | null)?._subject;
           return typeof content === "string"
-            ? [{ ...fact, content, revisionId: memoryValueRevisionId(value) }]
+            ? [
+                {
+                  ...fact,
+                  content,
+                  ...(subject === "ACCOUNT_HOLDER" ||
+                  subject === "REFERENCED_PERSON"
+                    ? { subject }
+                    : {}),
+                  revisionId: memoryValueRevisionId(value),
+                },
+              ]
             : [];
         }),
       });

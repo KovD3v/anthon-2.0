@@ -240,7 +240,7 @@ describe("Jev retrieval decisions", () => {
     expect(mocks.request).toHaveBeenCalledTimes(1);
     expect(mocks.request).toHaveBeenCalledWith(
       expect.objectContaining({
-        timeoutMs: 600,
+        timeoutMs: 800,
         state: expect.objectContaining({ source: "memory" }),
         questions: expect.objectContaining({
           topic_0: expect.anything(),

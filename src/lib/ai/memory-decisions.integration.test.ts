@@ -15,7 +15,7 @@ import {
 import { undoMemoryRevision } from "./memory-changes";
 import { consolidateTurnMemory } from "./memory-consolidator";
 import { extractMemoryCandidates } from "./memory-extractor";
-import { rememberFact } from "./memory-facts";
+import { type MemorySubject, rememberFact } from "./memory-facts";
 import { memoryValueRevisionId } from "./memory-revision";
 import { requestTypedDecisions } from "./typed-decisions";
 
@@ -26,19 +26,28 @@ vi.mock("./typed-decisions", async (importOriginal) => ({
 }));
 vi.mock("./usage-meter", () => ({ scheduleTypedDecisionUsage: vi.fn() }));
 
-async function fixture() {
+async function fixture(
+  options: { subject?: MemorySubject; candidateKey?: string } = {
+    subject: "ACCOUNT_HOLDER",
+  },
+) {
   const owner = await createUser();
   const chat = await createChat(owner.id);
+  const originalText =
+    options.subject === "REFERENCED_PERSON"
+      ? "Matteo: Si allena martedì sera"
+      : "Mi alleno martedì sera";
   const original = await createMessage({
     userId: owner.id,
     chatId: chat.id,
-    text: "Mi alleno martedì sera.",
+    text: `${originalText}.`,
     createdAt: new Date("2026-08-01T09:00:00Z"),
   });
   const originalInput = {
     userId: owner.id,
     key: "training_schedule",
-    value: "Mi alleno martedì sera",
+    value: originalText,
+    subject: options.subject,
     category: "schedule",
     confidence: 0.96,
     sensitivity: "LOW" as const,
@@ -64,7 +73,7 @@ async function fixture() {
   vi.stubEnv("AI_JEV_ALLOWED_USER_IDS", owner.id);
   vi.mocked(extractMemoryCandidates).mockResolvedValue([
     {
-      key: "weekly_training",
+      key: options.candidateKey ?? "weekly_training",
       value: "Mi alleno giovedì mattina",
       category: "schedule",
       confidence: 0.99,
@@ -319,6 +328,66 @@ describe("integration Jev semantic memory mutations", () => {
       value: expect.objectContaining({ content: "Mi alleno martedì sera" }),
     });
   });
+
+  it.each([undefined, "REFERENCED_PERSON"] as const)(
+    "does not retarget a holder correction to an ordinary-key fact with subject %s",
+    async (subject) => {
+      const { owner, memory, input } = await fixture({ subject });
+      vi.mocked(requestTypedDecisions).mockImplementation(
+        async ({ questions }) => reviewResponse(questions),
+      );
+      expect(await consolidateTurnMemory(input)).toEqual({
+        considered: 1,
+        persisted: 1,
+        approvalsCreated: 0,
+        rejected: 0,
+      });
+      expect(
+        Object.keys(
+          vi.mocked(requestTypedDecisions).mock.calls[0][0].questions,
+        ),
+      ).not.toContain("match_0_0");
+      expect(
+        await prisma.memory.findUniqueOrThrow({ where: { id: memory.id } }),
+      ).toEqual(memory);
+      expect(
+        await prisma.memoryRevision.count({ where: { memoryId: memory.id } }),
+      ).toBe(1);
+      const added = await prisma.memory.findUniqueOrThrow({
+        where: { userId_key: { userId: owner.id, key: "weekly_training" } },
+      });
+      expect(added.value).toMatchObject({
+        content: "Mi alleno giovedì mattina",
+        _subject: "ACCOUNT_HOLDER",
+      });
+    },
+  );
+
+  it.each(["off", "shadow"])(
+    "protects an exact-key fact's explicit subject even with review %s",
+    async (mode) => {
+      const { memory, input } = await fixture({
+        subject: "REFERENCED_PERSON",
+        candidateKey: "training_schedule",
+      });
+      vi.stubEnv("AI_MEMORY_REVIEW_MODE", mode);
+      vi.mocked(requestTypedDecisions).mockImplementation(
+        async ({ questions }) => reviewResponse(questions),
+      );
+      expect(await consolidateTurnMemory(input)).toEqual({
+        considered: 1,
+        persisted: 0,
+        approvalsCreated: 0,
+        rejected: 1,
+      });
+      expect(
+        await prisma.memory.findUniqueOrThrow({ where: { id: memory.id } }),
+      ).toEqual(memory);
+      expect(
+        await prisma.memoryRevision.count({ where: { memoryId: memory.id } }),
+      ).toBe(1);
+    },
+  );
 
   it("rejects a target changed during the model call without creating the candidate's alternate key", async () => {
     const { owner, memory, input, originalInput } = await fixture();

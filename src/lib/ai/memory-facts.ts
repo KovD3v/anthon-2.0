@@ -339,6 +339,23 @@ function canonicalFactInput(
   };
 }
 
+function hasConflictingSubject(
+  previousValue: Prisma.JsonValue,
+  input: FactMutationInput,
+) {
+  const previous = previousValue as StoredMemoryValue | null;
+  const previousSubject = validMemorySubject(previous?._subject);
+  const subject = validMemorySubject(input.subject);
+  if (!previousSubject || !subject) return false;
+  if (previousSubject !== subject) return true;
+  // The full descriptor distinguishes, for example, Anna (sister) from Anna (colleague).
+  return (
+    subject === "REFERENCED_PERSON" &&
+    (typeof previous?.content !== "string" ||
+      previous.content.split(":")[0] !== input.value.split(":")[0])
+  );
+}
+
 export async function rememberFactInTransaction(
   transaction: MemoryFactTransaction,
   requestedInput: FactMutationInput,
@@ -364,9 +381,20 @@ export async function rememberFactInTransaction(
   const previous = await transaction.memory.findFirst({
     where: { userId: input.userId, key: input.key },
   });
+  const previousSubject = validMemorySubject(
+    (previous?.value as StoredMemoryValue | null)?._subject,
+  );
+  const subject = validMemorySubject(input.subject);
+  if (
+    previous?.status === "ACTIVE" &&
+    hasConflictingSubject(previous.value, input)
+  )
+    return { status: "rejected" };
   if (input.semanticMatch) {
     if (
       !previous ||
+      !subject ||
+      previousSubject !== subject ||
       previous.userId !== input.userId ||
       previous.status !== "ACTIVE" ||
       previous.id !== input.semanticMatch.id ||
@@ -503,6 +531,8 @@ export async function reviseFact(
         where: { id: input.factId, userId: input.userId, status: "ACTIVE" },
       });
       if (!previous) return { status: "not_found" } as const;
+      if (hasConflictingSubject(previous.value, input))
+        return { status: "rejected" } as const;
 
       const revisionId = randomUUID();
       const nextValue = storedValue(

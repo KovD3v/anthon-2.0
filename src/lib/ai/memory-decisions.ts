@@ -7,6 +7,7 @@ import {
 } from "./memory-candidate-gate-policy";
 import type { CanonicalKnowledgeCandidate } from "./memory-canonicalization";
 import type { MemoryCandidate } from "./memory-extractor";
+import type { MemorySubject } from "./memory-facts";
 import {
   getJevDecisionMode,
   JEV_MODEL_ID,
@@ -61,6 +62,7 @@ export type MemoryReviewFact = {
   id: string;
   key: string;
   content: string;
+  subject?: MemorySubject;
   category: string;
   sensitivity: "LOW" | "HIGH";
   observedAt: Date;
@@ -100,18 +102,11 @@ function hasLiteralSubject(candidate: MemoryCandidate, userText: string) {
 }
 
 function sameSubject(memory: ReviewableMemory, fact: MemoryReviewFact) {
-  if (memory.candidate.subject === "ACCOUNT_HOLDER")
-    return !fact.key.startsWith("person_");
-  // Both the full descriptor and key prefix must match; "Anna" is not "Anna Maria".
+  if (fact.subject !== memory.candidate.subject) return false;
+  if (memory.candidate.subject === "ACCOUNT_HOLDER") return true;
+  // Explicit attribution and the full descriptor must match; keys are not identity evidence.
   const descriptor = memory.canonical.value.split(":")[0];
-  const subject =
-    memory.candidate.subjectName ?? memory.candidate.subjectRelationship;
-  const prefix = `person_${normalized(subject ?? "")
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")}_`;
-  return (
-    fact.key.startsWith(prefix) && fact.content.startsWith(`${descriptor}:`)
-  );
+  return fact.content.startsWith(`${descriptor}:`);
 }
 
 function hasExplicitCorrection(memory: ReviewableMemory, userText: string) {

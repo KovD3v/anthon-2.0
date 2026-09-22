@@ -44,6 +44,7 @@ const existing: MemoryReviewFact = {
   id: "fact-1",
   key: "training_schedule",
   content: "Allenamento ogni martedì sera",
+  subject: "ACCOUNT_HOLDER",
   category: "schedule",
   sensitivity: "LOW",
   observedAt: new Date("2026-09-01T10:00:00Z"),
@@ -219,12 +220,106 @@ describe("Jev memory review", () => {
           ...existing,
           key: "person_matteo_training",
           content: "Matteo: Allenamento ogni martedì sera",
+          subject: "REFERENCED_PERSON",
         },
       ],
     });
     expect(
       Object.keys(vi.mocked(requestTypedDecisions).mock.calls[0][0].questions),
     ).not.toContain("match_0_0");
+  });
+
+  it.each(["equivalent", "correction"])(
+    "does not accept a %s merge of an explicitly referenced person's ordinary-key fact",
+    async (kind) => {
+      respond({ match_0_0: kind });
+      const correction = {
+        ...memory,
+        candidate: {
+          ...memory.candidate,
+          evidence: "Correggi: ora mi alleno martedì sera",
+        },
+      };
+      const referencedFact = {
+        ...existing,
+        subject: "REFERENCED_PERSON" as const,
+        content: "Matteo: Allenamento ogni martedì sera",
+      };
+      const reviews = await reviewMemoryCandidates({
+        ...input,
+        userText: correction.candidate.evidence,
+        candidates: [correction],
+        existingFacts: [referencedFact],
+      });
+      expect(reviews[0].match).toBeUndefined();
+      expect(
+        Object.keys(
+          vi.mocked(requestTypedDecisions).mock.calls[0][0].questions,
+        ),
+      ).not.toContain("match_0_0");
+    },
+  );
+
+  it.each(["training_schedule", "weekly_training"])(
+    "does not infer a legacy merge target's subject from its key: %s",
+    async (key) => {
+      respond({ match_0_0: "equivalent" });
+      const reviews = await reviewMemoryCandidates({
+        ...input,
+        existingFacts: [{ ...existing, key, subject: undefined }],
+      });
+      expect(reviews[0]).toEqual({
+        reject: key === memory.canonical.key,
+        requiresApproval: false,
+      });
+      expect(
+        Object.keys(
+          vi.mocked(requestTypedDecisions).mock.calls[0][0].questions,
+        ),
+      ).not.toContain("match_0_0");
+    },
+  );
+
+  it("uses explicit holder attribution even when the key resembles a person namespace", async () => {
+    respond({ match_0_0: "equivalent" });
+    const fact = { ...existing, key: "person_training_schedule" };
+    expect(
+      (await reviewMemoryCandidates({ ...input, existingFacts: [fact] }))[0]
+        .match,
+    ).toEqual({ kind: "equivalent", fact });
+  });
+
+  it("matches a referenced person's full descriptor without inferring identity from the key", async () => {
+    respond({ match_0_0: "equivalent" });
+    const person: ReviewableMemory = {
+      ...memory,
+      candidate: {
+        ...memory.candidate,
+        subject: "REFERENCED_PERSON",
+        subjectName: "Anna",
+        evidence: "Anna si allena martedì",
+      },
+      canonical: {
+        ...memory.canonical,
+        key: "person_anna_weekly_training",
+        value: "Anna: Si allena martedì",
+      },
+    };
+    const fact: MemoryReviewFact = {
+      ...existing,
+      content: "Anna: Si allena martedì",
+      subject: "REFERENCED_PERSON",
+    };
+    expect(
+      (
+        await reviewMemoryCandidates({
+          ...input,
+          userText: person.candidate.evidence,
+          candidates: [person],
+          existingFacts: [fact],
+        })
+      )[0].match,
+    ).toEqual({ kind: "equivalent", fact });
   });
 
   it("requires the complete referenced-person descriptor, not a partial name prefix", async () => {
@@ -251,6 +346,7 @@ describe("Jev memory review", () => {
           ...existing,
           key: "person_anna_maria_training",
           content: "Anna Maria: Si allena martedì",
+          subject: "REFERENCED_PERSON",
         },
       ],
     });

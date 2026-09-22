@@ -13,6 +13,7 @@ import {
   type MemorySubject,
   recallFacts,
   rememberFact,
+  reviseFact,
 } from "./memory-facts";
 import { memoryValueRevisionId } from "./memory-revision";
 
@@ -120,5 +121,99 @@ describe("integration explicit memory subject metadata", () => {
       (await recallFacts({ userId: input.userId, query: "Ada" })).facts[0]
         ?.subject,
     ).toBe("REFERENCED_PERSON");
+  });
+
+  it.each([
+    ["remember", "ACCOUNT_HOLDER"],
+    ["revise", "ACCOUNT_HOLDER"],
+    ["remember", "REFERENCED_PERSON"],
+    ["revise", "REFERENCED_PERSON"],
+  ] as const)(
+    "does not %s a known %s fact with opposite attribution",
+    async (operation, subject) => {
+      const input = await fixture();
+      const saved = await rememberFact({ ...input, subject });
+      if (!saved.factId) throw new Error("Saved fact has no id");
+      const original = await prisma.memory.findUniqueOrThrow({
+        where: { id: saved.factId },
+      });
+      const next = {
+        ...input,
+        value: "Mi alleno giovedì.",
+        subject:
+          subject === "ACCOUNT_HOLDER"
+            ? ("REFERENCED_PERSON" as const)
+            : ("ACCOUNT_HOLDER" as const),
+        dedupeKey: `${input.dedupeKey}:conflicting-subject`,
+      };
+      expect(
+        operation === "remember"
+          ? await rememberFact(next)
+          : await reviseFact({ ...next, factId: saved.factId }),
+      ).toEqual({ status: "rejected" });
+      expect(
+        await prisma.memory.findUniqueOrThrow({ where: { id: saved.factId } }),
+      ).toEqual(original);
+      expect(
+        await prisma.memoryRevision.count({
+          where: { memoryId: saved.factId },
+        }),
+      ).toBe(1);
+    },
+  );
+
+  it.each(["remember", "revise"])(
+    "does not %s a named referenced person over a different relationship",
+    async (operation) => {
+      const input = await fixture();
+      const saved = await rememberFact({
+        ...input,
+        key: "person_anna_training",
+        value: "Anna (sorella): Si allena martedì",
+        subject: "REFERENCED_PERSON",
+      });
+      if (!saved.factId) throw new Error("Saved fact has no id");
+      const original = await prisma.memory.findUniqueOrThrow({
+        where: { id: saved.factId },
+      });
+      const next = {
+        ...input,
+        key: "person_anna_training",
+        value: "Anna (collega): Si allena giovedì",
+        subject: "REFERENCED_PERSON" as const,
+        dedupeKey: `${input.dedupeKey}:different-person`,
+      };
+      expect(
+        operation === "remember"
+          ? await rememberFact(next)
+          : await reviseFact({ ...next, factId: saved.factId }),
+      ).toEqual({ status: "rejected" });
+      expect(
+        await prisma.memory.findUniqueOrThrow({ where: { id: saved.factId } }),
+      ).toEqual(original);
+      expect(
+        await prisma.memoryRevision.count({
+          where: { memoryId: saved.factId },
+        }),
+      ).toBe(1);
+    },
+  );
+
+  it("keeps ordinary exact-key updates of legacy unknown facts available", async () => {
+    const input = await fixture();
+    const saved = await rememberFact(input);
+    if (!saved.factId) throw new Error("Saved fact has no id");
+    expect(
+      await rememberFact({
+        ...input,
+        subject: "ACCOUNT_HOLDER",
+        value: "Mi alleno giovedì.",
+        dedupeKey: `${input.dedupeKey}:verified-subject`,
+      }),
+    ).toEqual({ status: "saved", factId: saved.factId });
+    expect(
+      (await getActiveFactById({ userId: input.userId, factId: saved.factId }))
+        ?.subject,
+    ).toBe("ACCOUNT_HOLDER");
   });
 });
