@@ -62,7 +62,7 @@ it("requires authentication, same origin and an approved plan with no client ove
     (await POST(request({ action: "checkout", plan: "basic" }))).status,
   ).toBe(401);
   for (const body of [
-    { action: "checkout", plan: "pro" },
+    { action: "checkout", plan: "enterprise" },
     { action: "checkout", plan: "basic", amount: 1 },
     { action: "portal", customer: "cus_victim" },
     { action: "refresh", userId: "victim" },

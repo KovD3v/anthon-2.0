@@ -1,12 +1,12 @@
 import type Stripe from "stripe";
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling, isStripeLiveBilling } from "@/lib/billing/config";
 import { getStripe, handleStripeEvent } from "@/lib/billing/stripe";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("webhook");
 
 export async function POST(request: Request) {
-  if (!isStripeTestBilling()) return new Response(null, { status: 404 });
+  if (!isStripeBilling()) return new Response(null, { status: 404 });
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) return new Response("Webhook not configured", { status: 503 });
   let event: Stripe.Event;
@@ -22,8 +22,8 @@ export async function POST(request: Request) {
   } catch {
     return new Response("Invalid webhook", { status: 400 });
   }
-  if (event.livemode || event.account)
-    return new Response("Test events only", { status: 400 });
+  if (event.livemode !== isStripeLiveBilling() || event.account)
+    return new Response("Wrong Stripe event mode", { status: 400 });
   try {
     await handleStripeEvent(event);
     return Response.json({ received: true });

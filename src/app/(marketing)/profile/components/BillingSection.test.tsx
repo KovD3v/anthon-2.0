@@ -34,6 +34,7 @@ const summary = {
     name: "Basic",
     amount: 1999,
     currency: "eur",
+    interval: "month",
     status: "active",
     currentPeriodEnd: 1792627200,
     cancelAtPeriodEnd: false,
@@ -73,6 +74,23 @@ afterEach(() => {
 });
 
 describe("BillingSection", () => {
+  it("shows the full annual charge with its annual interval", async () => {
+    fetchMock.mockResolvedValueOnce(
+      json({
+        ...summary,
+        subscription: {
+          ...summary.subscription,
+          plan: "basic_annual",
+          amount: 19999,
+          interval: "year",
+        },
+      }),
+    );
+    render(<BillingSection />);
+    expect(await screen.findByText(/199,99.*\/ anno/)).toBeTruthy();
+    expect(screen.queryByText(/\/ mese/)).toBeNull();
+  });
+
   it("shows authoritative plan, saved card and invoice download", async () => {
     render(<BillingSection />);
     expect(await screen.findByText("Basic")).toBeTruthy();

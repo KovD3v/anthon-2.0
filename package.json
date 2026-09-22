@@ -6,6 +6,7 @@
     "dev": "prisma generate && next dev",
     "dev:stripe-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test scripts/dev-stripe-test.ts",
     "billing:setup-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test scripts/setup-stripe-test.ts",
+    "billing:setup-live": "bun scripts/setup-stripe-test.ts",
     "billing:verify-test": "bun --env-file=.env --env-file=.env.local --env-file=.env.stripe-test --conditions=react-server scripts/verify-stripe-test.ts",
     "build": "prisma generate && next build",
     "vercel:build": "bash scripts/vercel-build.sh",

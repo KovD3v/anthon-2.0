@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Button } from "@/components/ui/button";
 import { PageWrapper } from "@/components/ui/page-wrapper";
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling, isStripeTestBilling } from "@/lib/billing/config";
 import { LocalizedPricingTable } from "./LocalizedPricingTable";
 import { StripePricing } from "./StripePricing";
 
@@ -13,6 +13,7 @@ export const instant = false;
 
 export default function PricingPage() {
   const stripeTest = isStripeTestBilling();
+  const stripe = isStripeBilling();
   return (
     <PageWrapper>
       <div className="min-h-screen bg-background py-12 md:py-20">
@@ -22,17 +23,17 @@ export default function PricingPage() {
               Piani personali
             </p>
             <h1 className="font-display mx-auto mt-4 max-w-4xl text-4xl font-bold uppercase leading-[0.95] tracking-tight sm:text-6xl">
-              Scegli il piano in base al tuo obiettivo sportivo
+              Scegli il piano per i tuoi obiettivi
             </h1>
             <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-muted-foreground">
               {stripeTest
-                ? "Prova il pagamento e la gestione dell’abbonamento in ambiente di test. Pro e piani annuali non sono ancora disponibili."
-                : "Prova Anthon in chat. Puoi cambiare piano quando vuoi allenarti con più continuità o coinvolgere la squadra."}
+                ? "Prova il pagamento e la gestione dell’abbonamento in ambiente di test."
+                : "Scegli quanto spazio dedicare al tuo percorso con Anthon, con pagamento mensile o annuale."}
             </p>
           </div>
 
           <div className="max-w-5xl mx-auto">
-            {stripeTest ? (
+            {stripe ? (
               <Suspense
                 fallback={<output>Caricamento listino in euro…</output>}
               >
@@ -41,7 +42,7 @@ export default function PricingPage() {
             ) : (
               <LocalizedPricingTable />
             )}
-            {!stripeTest && (
+            {!stripe && (
               <div className="mt-4 flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4 text-left text-sm text-muted-foreground">
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <p>

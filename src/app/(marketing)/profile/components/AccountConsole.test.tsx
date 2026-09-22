@@ -101,7 +101,7 @@ describe("AccountConsole", () => {
 
   it("follows billing deeplinks and browser history in test mode", () => {
     window.history.replaceState(null, "", "/profile?tab=billing");
-    render(<AccountConsole isStripeTestBilling />);
+    render(<AccountConsole stripeBilling />);
     expect(
       screen
         .getByRole("tab", { name: "Abbonamento" })

@@ -1,9 +1,16 @@
 export type StripeBillingSummary = {
   subscription: {
-    plan: "basic" | "basic_plus";
+    plan:
+      | "basic"
+      | "basic_plus"
+      | "pro"
+      | "basic_annual"
+      | "basic_plus_annual"
+      | "pro_annual";
     name: string;
     amount: number;
     currency: "eur";
+    interval: "month" | "year";
     status: string;
     currentPeriodEnd: number;
     cancelAtPeriodEnd: boolean;

@@ -11,6 +11,28 @@ import {
 describe("plans/resolver", () => {
   afterEach(() => vi.unstubAllEnvs());
 
+  it("isolates live entitlements from test and Clerk subscriptions", () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_live");
+    expect(
+      resolvePersonalPlan({
+        subscriptionStatus: "ACTIVE",
+        planId: "stripe_live:pro",
+      }),
+    ).toBe("PRO");
+    for (const planId of ["stripe_test:pro", "my-pro-plan"]) {
+      expect(() =>
+        resolvePersonalPlan({ subscriptionStatus: "ACTIVE", planId }),
+      ).toThrow(PlanResolutionError);
+    }
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    expect(() =>
+      resolvePersonalPlan({
+        subscriptionStatus: "ACTIVE",
+        planId: "stripe_live:pro",
+      }),
+    ).toThrow(PlanResolutionError);
+  });
+
   it("does not mix Clerk entitlements and isolated Stripe test payments", () => {
     vi.stubEnv("BILLING_PROVIDER", "stripe_test");
     expect(() =>

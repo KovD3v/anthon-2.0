@@ -1,7 +1,11 @@
 import type Stripe from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getStripeTestDatabaseUrl, getStripeTestOrigin } from "./config";
-import { STRIPE_TEST_PLANS, validateStripePrice } from "./stripe-catalog";
+import {
+  getStripePlans,
+  STRIPE_TEST_PLANS,
+  validateStripePrice,
+} from "./stripe-catalog";
 
 const mocks = vi.hoisted(() => ({
   prices: vi.fn(),
@@ -94,7 +98,7 @@ const prices = Object.entries(STRIPE_TEST_PLANS).map(
       lookup_key: plan.lookupKey,
       tax_behavior: "inclusive",
       recurring: {
-        interval: "month",
+        interval: plan.interval,
         interval_count: 1,
         usage_type: "licensed",
       },
@@ -163,6 +167,98 @@ describe("isolated Stripe billing", () => {
     });
   });
   afterEach(() => vi.unstubAllEnvs());
+
+  it("offers annual billing without launch promotions and resolves its canonical entitlement", async () => {
+    await createStripeCheckout("user-1", "pro_annual");
+    expect(mocks.checkoutCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allow_promotion_codes: false,
+        line_items: [{ price: "price_pro_annual", quantity: 1 }],
+      }),
+    );
+    mocks.subscriptions.mockResolvedValue({
+      data: [
+        {
+          ...activeSubscription,
+          items: {
+            data: [
+              {
+                ...activeSubscription.items.data[0],
+                price: prices.find((p) => p.id === "price_pro_annual"),
+              },
+            ],
+          },
+        },
+      ],
+      has_more: false,
+    });
+    expect(await syncPersonalSubscriptionFromStripe("user-1")).toEqual({
+      status: "ACTIVE",
+      planId: "stripe_test:pro",
+    });
+    expect(
+      (await getStripeBillingSummary("user-1")).subscription,
+    ).toMatchObject({ amount: 49999, interval: "year", plan: "pro_annual" });
+  });
+
+  it("accepts matching live resources only with production credentials and a secure origin", async () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_live");
+    expect(getStripe).toThrow("production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CLERK_SECRET_KEY", "sk_live_clerk");
+    vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "pk_live_clerk");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_stripe");
+    vi.stubEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY", "pk_live_stripe");
+    expect(getStripe).toThrow("HTTPS");
+    vi.stubEnv("APP_URL", "https://anthon.example");
+    expect(getStripe).not.toThrow();
+    const plans = getStripePlans();
+    const livePrices = prices.map((price, index) => {
+      const plan = Object.values(plans)[index];
+      return {
+        ...price,
+        livemode: true,
+        product: plan.productId,
+        lookup_key: plan.lookupKey,
+      };
+    });
+    mocks.prices.mockResolvedValue({ data: livePrices, has_more: false });
+    await expect(createStripeCheckout("user-1", "basic")).rejects.toThrow(
+      "checkout",
+    );
+    mocks.checkoutCreate.mockResolvedValue({
+      client_secret: "cs_live_secret",
+      livemode: true,
+    });
+    expect(await createStripeCheckout("user-1", "basic")).toEqual({
+      clientSecret: "cs_live_secret",
+    });
+    mocks.subscriptions.mockResolvedValue({
+      data: [
+        {
+          ...activeSubscription,
+          livemode: true,
+          items: {
+            data: [
+              { ...activeSubscription.items.data[0], price: livePrices[0] },
+            ],
+          },
+        },
+      ],
+      has_more: false,
+    });
+    expect(await syncPersonalSubscriptionFromStripe("user-1")).toEqual({
+      status: "ACTIVE",
+      planId: "stripe_live:basic",
+    });
+    mocks.subscriptions.mockResolvedValue({
+      data: [activeSubscription],
+      has_more: false,
+    });
+    await expect(syncPersonalSubscriptionFromStripe("user-1")).rejects.toThrow(
+      "collection",
+    );
+  });
 
   it("rejects live keys, production, shared database endpoints and non-web origins", () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_forbidden");
@@ -292,6 +388,7 @@ describe("isolated Stripe billing", () => {
         amount: 1999,
         currency: "eur",
         status: "active",
+        interval: "month",
         currentPeriodEnd: 4102444800,
         cancelAtPeriodEnd: false,
       },
@@ -531,7 +628,7 @@ describe("isolated Stripe billing", () => {
     );
     await expect(
       handleStripeEvent({ ...staleEvent, livemode: true }),
-    ).rejects.toThrow("test events");
+    ).rejects.toThrow("billing mode");
   });
 
   it("expires checkout and cancels recurring billing before deleting account data", async () => {

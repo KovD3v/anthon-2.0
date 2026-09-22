@@ -2,6 +2,48 @@ export function isStripeTestBilling(): boolean {
   return process.env.BILLING_PROVIDER === "stripe_test";
 }
 
+export function isStripeLiveBilling(): boolean {
+  return process.env.BILLING_PROVIDER === "stripe_live";
+}
+
+export function isStripeBilling(): boolean {
+  return isStripeTestBilling() || isStripeLiveBilling();
+}
+
+export function assertStripeEnvironment(): void {
+  if (!isStripeLiveBilling()) {
+    assertStripeTestEnvironment();
+    return;
+  }
+  if (
+    process.env.VERCEL_ENV !== "production" ||
+    !process.env.CLERK_SECRET_KEY?.startsWith("sk_live_") ||
+    !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY?.startsWith("pk_live_") ||
+    !process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_") ||
+    !process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.startsWith("pk_live_")
+  ) {
+    throw new Error(
+      "Stripe live billing requires production and live credentials",
+    );
+  }
+  const url = new URL(process.env.APP_URL ?? "");
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+  ) {
+    throw new Error("Stripe live billing requires a public HTTPS APP_URL");
+  }
+}
+
+export function getStripeOrigin(): string {
+  assertStripeEnvironment();
+  return isStripeLiveBilling()
+    ? new URL(process.env.APP_URL as string).origin
+    : getStripeTestOrigin();
+}
+
 export function assertStripeTestEnvironment(): void {
   if (!isStripeTestBilling() || process.env.VERCEL_ENV === "production") {
     throw new Error("Stripe billing is restricted to the test environment");

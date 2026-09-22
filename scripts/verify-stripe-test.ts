@@ -55,6 +55,32 @@ async function verify() {
     await stripe.customers.update(customer.id, {
       metadata: { anthonUserId: user.id },
     });
+    for (const offer of prices.filter(
+      (item) => item.interval === "year" || item.key === "pro",
+    )) {
+      const result = await createStripeCheckout(user.id, offer.key);
+      assert("clientSecret" in result && result.clientSecret);
+      const opened = await stripe.checkout.sessions.list({
+        customer: customer.id,
+        status: "open",
+        limit: 10,
+      });
+      assert.equal(opened.data.length, 1);
+      const annualSession = opened.data[0];
+      assert.equal(
+        annualSession.allow_promotion_codes,
+        offer.interval === "month",
+      );
+      const lines = await stripe.checkout.sessions.listLineItems(
+        annualSession.id,
+      );
+      assert.equal(lines.data[0].price?.unit_amount, offer.price.unit_amount);
+      assert.equal(lines.data[0].price?.recurring?.interval, offer.interval);
+      await stripe.checkout.sessions.expire(annualSession.id);
+    }
+    console.log(
+      "PASS: Pro monthly and all annual checkout amounts/intervals; annual promotions disabled.",
+    );
     const checkout = await createStripeCheckout(user.id, "basic_plus");
     assert(
       "clientSecret" in checkout && checkout.clientSecret,
@@ -153,6 +179,7 @@ async function verify() {
       plan: "basic_plus",
       name: "Basic Plus",
       amount: 2999,
+      interval: "month",
       currency: "eur",
       status: "active",
       currentPeriodEnd: subscription.items.data[0].current_period_end,

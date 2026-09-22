@@ -2,19 +2,25 @@ import "server-only";
 import Stripe from "stripe";
 import type { SubscriptionStatus } from "@/generated/prisma";
 import { prisma } from "@/lib/db";
-import { assertStripeTestEnvironment, getStripeTestOrigin } from "./config";
+import {
+  assertStripeEnvironment,
+  getStripeOrigin,
+  isStripeLiveBilling,
+} from "./config";
 import type { StripeBillingSummary } from "./contracts";
 import {
+  getStripePlans,
   getStripeTestPrices,
-  STRIPE_TEST_PLANS,
   type StripePlanKey,
 } from "./stripe-catalog";
 
 export function getStripe(): Stripe {
-  assertStripeTestEnvironment();
+  assertStripeEnvironment();
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key?.startsWith("sk_test_")) {
-    throw new Error("STRIPE_SECRET_KEY must be a test key");
+  if (!key?.startsWith(isStripeLiveBilling() ? "sk_live_" : "sk_test_")) {
+    throw new Error(
+      "STRIPE_SECRET_KEY must match the selected mode (test key in test mode)",
+    );
   }
   return new Stripe(key, { maxNetworkRetries: 2, timeout: 10_000 });
 }
@@ -48,9 +54,10 @@ async function getCustomer(
     {
       metadata: { anthonUserId: userId },
     },
-    { idempotencyKey: `anthon-test-customer:${userId}` },
+    { idempotencyKey: `anthon-customer:${userId}` },
   );
-  if (customer.livemode) throw new Error("Live customer rejected");
+  if (customer.livemode !== isStripeLiveBilling())
+    throw new Error("Customer billing mode mismatch");
   await tx.subscription.upsert({
     where: { userId },
     create: { userId, stripeCustomerId: customer.id },
@@ -71,7 +78,10 @@ async function subscriptionsForCustomer(stripe: Stripe, customer: string) {
     limit: 100,
   });
   // Fail closed instead of overlooking an active subscription on another page.
-  if (result.has_more || result.data.some((item) => item.livemode)) {
+  if (
+    result.has_more ||
+    result.data.some((item) => item.livemode !== isStripeLiveBilling())
+  ) {
     throw new Error("Unexpected Stripe subscription collection");
   }
   return result.data;
@@ -82,7 +92,7 @@ export async function createStripeCheckout(
   plan: StripePlanKey,
 ) {
   const stripe = getStripe();
-  const origin = getStripeTestOrigin();
+  const origin = getStripeOrigin();
   const prices = await getStripeTestPrices(stripe);
   const selected = prices.find((entry) => entry.key === plan);
   if (!selected) throw new Error("Unknown plan");
@@ -102,8 +112,8 @@ export async function createStripeCheckout(
       limit: 100,
     });
     if (open.has_more) throw new Error("Too many open checkouts");
-    if (open.data.some((session) => session.livemode))
-      throw new Error("Live checkout rejected");
+    if (open.data.some((session) => session.livemode !== isStripeLiveBilling()))
+      throw new Error("Checkout billing mode mismatch");
     const pending = open.data.find(
       (session) =>
         session.metadata?.anthonPlan === plan &&
@@ -123,7 +133,7 @@ export async function createStripeCheckout(
       currency: "eur",
       adaptive_pricing: { enabled: false },
       payment_method_types: ["card"],
-      allow_promotion_codes: true,
+      allow_promotion_codes: selected.price.recurring?.interval === "month",
       line_items: [{ price: selected.price.id, quantity: 1 }],
       metadata: { anthonPlan: plan },
       subscription_data: { metadata: { anthonUserId: userId } },
@@ -131,8 +141,8 @@ export async function createStripeCheckout(
       locale: "it",
       return_url: `${origin}/profile?tab=billing&checkout=complete`,
     });
-    if (!checkout.client_secret || checkout.livemode)
-      throw new Error("Invalid test checkout");
+    if (!checkout.client_secret || checkout.livemode !== isStripeLiveBilling())
+      throw new Error("Invalid checkout");
     return { clientSecret: checkout.client_secret };
   });
 }
@@ -146,7 +156,7 @@ async function ownedCustomer(stripe: Stripe, tx: Transaction, userId: string) {
   const customer = await stripe.customers.retrieve(current.stripeCustomerId);
   if (
     customer.deleted ||
-    customer.livemode ||
+    customer.livemode !== isStripeLiveBilling() ||
     customer.metadata.anthonUserId !== userId
   )
     throw new Error("Invalid billing customer ownership");
@@ -193,7 +203,8 @@ export async function getStripeBillingSummary(
       : method;
   if (
     paymentMethod &&
-    (paymentMethod.livemode || paymentMethod.customer !== customer.id)
+    (paymentMethod.livemode !== isStripeLiveBilling() ||
+      paymentMethod.customer !== customer.id)
   )
     throw new Error("Invalid payment method ownership");
   // ponytail: latest 12 invoices; paginate when longer history is needed.
@@ -203,7 +214,9 @@ export async function getStripeBillingSummary(
   });
   if (
     invoices.data.some(
-      (invoice) => invoice.livemode || invoice.customer !== customer.id,
+      (invoice) =>
+        invoice.livemode !== isStripeLiveBilling() ||
+        invoice.customer !== customer.id,
     )
   )
     throw new Error("Invalid invoice ownership");
@@ -212,9 +225,10 @@ export async function getStripeBillingSummary(
     subscription: personal
       ? {
           plan: personal.selected.key,
-          name: STRIPE_TEST_PLANS[personal.selected.key].name,
-          amount: STRIPE_TEST_PLANS[personal.selected.key].amount,
+          name: getStripePlans()[personal.selected.key].name,
+          amount: getStripePlans()[personal.selected.key].amount,
           currency: "eur",
+          interval: getStripePlans()[personal.selected.key].interval,
           status: personal.subscription.status,
           currentPeriodEnd:
             personal.subscription.items.data[0].current_period_end,
@@ -273,7 +287,7 @@ export async function createStripePaymentMethodSetup(userId: string) {
       usage: "off_session",
       metadata: { anthonUserId: userId },
     });
-    if (intent.livemode || !intent.client_secret)
+    if (intent.livemode !== isStripeLiveBilling() || !intent.client_secret)
       throw new Error("Invalid setup intent");
     return { clientSecret: intent.client_secret };
   });
@@ -289,7 +303,7 @@ export async function confirmStripePaymentMethod(
     if (!customer) throw new Error("No billing customer");
     const intent = await stripe.setupIntents.retrieve(setupIntentId);
     if (
-      intent.livemode ||
+      intent.livemode !== isStripeLiveBilling() ||
       intent.status !== "succeeded" ||
       intent.customer !== customer.id ||
       intent.metadata?.anthonUserId !== userId ||
@@ -298,7 +312,7 @@ export async function confirmStripePaymentMethod(
       throw new Error("Invalid setup intent ownership or state");
     const method = await stripe.paymentMethods.retrieve(intent.payment_method);
     if (
-      method.livemode ||
+      method.livemode !== isStripeLiveBilling() ||
       method.customer !== customer.id ||
       method.type !== "card"
     )
@@ -361,13 +375,15 @@ export async function syncPersonalSubscriptionFromStripe(userId: string) {
       ({ price }) => price.id === subscription?.items.data[0]?.price.id,
     );
     const status = stripeSubscriptionState(subscription);
-    const planId = selected ? `stripe_test:${selected.key}` : null;
+    const planId = selected
+      ? `${isStripeLiveBilling() ? "stripe_live" : "stripe_test"}:${selected.key.replace(/_annual$/, "")}`
+      : null;
     await tx.subscription.update({
       where: { userId },
       data: {
         status,
         planId,
-        planName: selected ? STRIPE_TEST_PLANS[selected.key].name : null,
+        planName: selected ? getStripePlans()[selected.key].name : null,
         clerkSubscriptionId: null,
         stripeSubscriptionId: subscription?.id ?? null,
         convertedAt:
@@ -386,8 +402,10 @@ export async function syncPersonalSubscriptionFromStripe(userId: string) {
 }
 
 export async function handleStripeEvent(event: Stripe.Event) {
-  if (event.livemode || event.account)
-    throw new Error("Only standalone test events are accepted");
+  if (event.livemode !== isStripeLiveBilling() || event.account)
+    throw new Error(
+      "Only standalone events matching the billing mode are accepted",
+    );
   if (
     ![
       "customer.subscription.created",
@@ -431,7 +449,8 @@ export async function withStripeAccountDeletion(
     if (open.has_more)
       throw new Error("Too many pending checkouts to delete account");
     for (const checkout of open.data) {
-      if (checkout.livemode) throw new Error("Live checkout rejected");
+      if (checkout.livemode !== isStripeLiveBilling())
+        throw new Error("Checkout billing mode mismatch");
       await stripe.checkout.sessions.expire(checkout.id);
     }
     for (const subscription of await subscriptionsForCustomer(

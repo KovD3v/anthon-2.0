@@ -2,9 +2,12 @@ import { auth } from "@clerk/nextjs/server";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling, isStripeTestBilling } from "@/lib/billing/config";
 import { getStripe } from "@/lib/billing/stripe";
-import { getStripeTestPrices } from "@/lib/billing/stripe-catalog";
+import {
+  getStripeTestPrices,
+  STRIPE_TEST_PLANS,
+} from "@/lib/billing/stripe-catalog";
 import { CheckoutClient } from "./CheckoutClient";
 
 export const instant = false;
@@ -14,8 +17,7 @@ export default function CheckoutPage({
 }: {
   searchParams: Promise<{ plan?: string | string[] }>;
 }) {
-  if (!isStripeTestBilling() || process.env.VERCEL_ENV === "production")
-    notFound();
+  if (!isStripeBilling()) notFound();
   return (
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6 md:py-20">
       <Link href="/pricing" className="text-sm underline underline-offset-4">
@@ -25,7 +27,9 @@ export default function CheckoutPage({
         Attiva il tuo piano
       </h1>
       <p className="mt-3 mb-10 text-sm text-muted-foreground">
-        Ambiente di test. Nessun addebito reale.
+        {isStripeTestBilling()
+          ? "Ambiente di test. Nessun addebito reale."
+          : "Pagamento sicuro in euro."}
       </p>
       <Suspense fallback={<output>Caricamento checkout…</output>}>
         <CheckoutContent searchParams={searchParams} />
@@ -40,7 +44,8 @@ async function CheckoutContent({
   searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { plan } = await searchParams;
-  if (plan !== "basic" && plan !== "basic_plus") redirect("/pricing");
+  if (typeof plan !== "string" || !Object.hasOwn(STRIPE_TEST_PLANS, plan))
+    redirect("/pricing");
   const { userId } = await auth();
   if (!userId)
     redirect(
@@ -56,8 +61,7 @@ async function CheckoutContent({
   } catch {
     return (
       <p role="alert">
-        Il checkout di test non è disponibile. Torna ai piani e riprova tra
-        poco.
+        Il checkout non è disponibile. Torna ai piani e riprova tra poco.
       </p>
     );
   }
@@ -65,10 +69,12 @@ async function CheckoutContent({
   return (
     <CheckoutClient
       key={plan}
+      testMode={isStripeTestBilling()}
       plan={{
         key: selected.key,
         name: selected.name,
         amount: selected.price.unit_amount as number,
+        interval: selected.interval,
       }}
     />
   );

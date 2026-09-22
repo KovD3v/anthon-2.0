@@ -1,4 +1,4 @@
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling } from "@/lib/billing/config";
 import { Navbar } from "../(marketing)/components/Navbar";
 
 // TODO: Cache Components adoption. Refactor this route so this opt-out can be removed.
@@ -18,7 +18,7 @@ export default function MarketingLayout({
       >
         Vai al contenuto principale
       </a>
-      <Navbar stripeBilling={isStripeTestBilling()} />
+      <Navbar stripeBilling={isStripeBilling()} />
       <main id="contenuto-principale" className="flex-1">
         {children}
       </main>

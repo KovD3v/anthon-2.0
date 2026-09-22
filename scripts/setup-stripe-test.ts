@@ -1,21 +1,31 @@
 import Stripe from "stripe";
-import { assertStripeTestEnvironment } from "../src/lib/billing/config";
+import { assertStripeEnvironment } from "../src/lib/billing/config";
 import {
+  getStripePlans,
   getStripeTestPrices,
-  STRIPE_TEST_PLANS,
   type StripePlanKey,
   validateStripePrice,
 } from "../src/lib/billing/stripe-catalog";
 
-assertStripeTestEnvironment();
+assertStripeEnvironment();
+const live = process.env.BILLING_PROVIDER === "stripe_live";
 const key = process.env.STRIPE_SECRET_KEY;
-if (!key?.startsWith("sk_test_"))
-  throw new Error("A Stripe test key is required");
+if (!key?.startsWith(live ? "sk_live_" : "sk_test_"))
+  throw new Error("Stripe key does not match billing mode");
 const stripe = new Stripe(key, { maxNetworkRetries: 2 });
-const metadata = { anthon: "stripe-eur-test" };
+const metadata = { anthon: live ? "stripe-eur-live" : "stripe-eur-test" };
+const plans = getStripePlans();
+const launchAt = process.env.STRIPE_LAUNCH_AT;
+if (live && (!launchAt || !Number.isFinite(Date.parse(launchAt))))
+  throw new Error("STRIPE_LAUNCH_AT must be the approved ISO launch date");
+const expiresAt =
+  Math.floor((launchAt ? Date.parse(launchAt) : Date.now()) / 1000) +
+  30 * 24 * 60 * 60;
+if (expiresAt <= Math.floor(Date.now() / 1000))
+  throw new Error("Launch promotion window has already ended");
 
 // Stable IDs/lookup keys make reruns safe without repricing existing objects.
-for (const [planKey, plan] of Object.entries(STRIPE_TEST_PLANS)) {
+for (const [planKey, plan] of Object.entries(plans)) {
   let product: Stripe.Product;
   try {
     product = await stripe.products.retrieve(plan.productId);
@@ -27,11 +37,11 @@ for (const [planKey, plan] of Object.entries(STRIPE_TEST_PLANS)) {
       throw error;
     product = await stripe.products.create(
       { id: plan.productId, name: plan.name, metadata },
-      { idempotencyKey: plan.productId },
+      { idempotencyKey: `product:${plan.productId}` },
     );
   }
   if (
-    product.livemode ||
+    product.livemode !== live ||
     !product.active ||
     product.metadata.anthon !== metadata.anthon
   )
@@ -49,18 +59,19 @@ for (const [planKey, plan] of Object.entries(STRIPE_TEST_PLANS)) {
         product: product.id,
         currency: "eur",
         unit_amount: plan.amount,
-        recurring: { interval: "month" },
+        recurring: { interval: plan.interval },
         tax_behavior: "inclusive",
         lookup_key: plan.lookupKey,
         metadata,
       },
-      { idempotencyKey: plan.lookupKey },
+      { idempotencyKey: `price:${plan.lookupKey}` },
     ));
   validateStripePrice(price, planKey as StripePlanKey);
 }
 
-const couponId = "anthon_lancio5_eur_test";
-const products = Object.values(STRIPE_TEST_PLANS)
+const couponId = `anthon_lancio5_eur_${live ? "live" : "test"}_monthly_v2`;
+const products = Object.values(plans)
+  .filter((plan) => plan.interval === "month")
   .map((plan) => plan.productId)
   .sort();
 let coupon: Stripe.Coupon;
@@ -87,7 +98,7 @@ try {
   );
 }
 if (
-  coupon.livemode ||
+  coupon.livemode !== live ||
   coupon.amount_off !== 500 ||
   coupon.currency !== "eur" ||
   coupon.duration !== "once" ||
@@ -96,27 +107,41 @@ if (
 )
   throw new Error("Unexpected launch coupon; no changes made to it");
 
-const codes = await stripe.promotionCodes.list({ code: "LANCIO5", limit: 100 });
+const codes = await stripe.promotionCodes.list({
+  code: "LANCIO5",
+  active: true,
+  limit: 100,
+});
 if (codes.has_more || codes.data.length > 1)
   throw new Error("Ambiguous launch code");
+let existingPromotion: Stripe.PromotionCode | undefined = codes.data[0];
+if (existingPromotion) {
+  const old = existingPromotion.promotion.coupon;
+  const oldId = typeof old === "string" ? old : old?.id;
+  // Replace only our previous Sandbox campaign; never overwrite an unknown live code.
+  if (!live && oldId === "anthon_lancio5_eur_test") {
+    await stripe.promotionCodes.update(existingPromotion.id, { active: false });
+    existingPromotion = undefined;
+  }
+}
 const promotion =
-  codes.data[0] ??
+  existingPromotion ??
   (await stripe.promotionCodes.create({
     code: "LANCIO5",
     promotion: { type: "coupon", coupon: coupon.id },
-    expires_at: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    expires_at: expiresAt,
     restrictions: { first_time_transaction: true },
     metadata,
   }));
 const promotionCoupon = promotion.promotion.coupon;
 if (
-  promotion.livemode ||
+  promotion.livemode !== live ||
   !promotion.restrictions.first_time_transaction ||
   (typeof promotionCoupon === "string"
     ? promotionCoupon
     : promotionCoupon?.id) !== coupon.id ||
   !promotion.expires_at ||
-  promotion.expires_at - promotion.created > 30 * 24 * 60 * 60 + 60
+  (live && promotion.expires_at !== expiresAt)
 )
   throw new Error("Unexpected launch code; no changes made to it");
 
@@ -124,7 +149,7 @@ const prices = await getStripeTestPrices(stripe);
 console.log(
   JSON.stringify(
     {
-      mode: "test",
+      mode: live ? "live" : "test",
       prices: prices.map(({ name, price }) => ({
         name,
         currency: price.currency,

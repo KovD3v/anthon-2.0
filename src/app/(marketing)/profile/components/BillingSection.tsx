@@ -294,7 +294,8 @@ export function BillingSection() {
                       {subscription.name}
                     </h3>
                     <p className="mt-1 text-sm">
-                      {money(subscription.amount, subscription.currency)} / mese
+                      {money(subscription.amount, subscription.currency)} /{" "}
+                      {subscription.interval === "year" ? "anno" : "mese"}
                     </p>
                   </div>
                   <p className="text-sm font-medium">

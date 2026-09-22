@@ -33,13 +33,13 @@ const accountTabs = [
 ] as const;
 
 export function AccountConsole({
-  isStripeTestBilling = false,
+  stripeBilling = false,
 }: {
-  isStripeTestBilling?: boolean;
+  stripeBilling?: boolean;
 }) {
   const { isLoaded, user } = useUser();
   const searchParams = useSearchParams();
-  const tabs = isStripeTestBilling
+  const tabs = stripeBilling
     ? [...accountTabs, ["billing", "Abbonamento"] as const]
     : accountTabs;
   const requestedTab = searchParams.get("tab");
@@ -153,7 +153,7 @@ export function AccountConsole({
             <TabsTrigger
               key={value}
               value={value}
-              className={`${isStripeTestBilling || index < 3 ? "col-span-2" : "col-span-3"} min-h-11 w-full rounded-lg px-2 text-sm leading-tight text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] md:col-span-1 md:w-auto md:flex-none md:rounded-xl md:px-4 dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]`}
+              className={`${stripeBilling || index < 3 ? "col-span-2" : "col-span-3"} min-h-11 w-full rounded-lg px-2 text-sm leading-tight text-white/65 hover:text-white data-active:bg-brand-yellow data-active:text-[#171714] md:col-span-1 md:w-auto md:flex-none md:rounded-xl md:px-4 dark:data-active:bg-brand-yellow dark:data-active:text-[#171714]`}
             >
               {label}
             </TabsTrigger>
@@ -207,7 +207,7 @@ export function AccountConsole({
             <ConnectedAccountsSection />
           </section>
         </TabsContent>
-        {isStripeTestBilling ? (
+        {stripeBilling ? (
           <TabsContent
             value="billing"
             className="mt-4 overflow-hidden rounded-xl border border-border bg-card sm:mt-5 sm:rounded-2xl inert:hidden"

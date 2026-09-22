@@ -1,5 +1,7 @@
 # Stage Stripe EUR billing in test only
 
+The approved live/monthly/annual rollout in ADR 0032 supersedes this record's test-only restriction and initial two-plan catalog. The evidence below describes the original staging work.
+
 Clerk remains the authentication and organization identity provider. Personal billing is being migrated to Stripe because the approved launch prices and discounts must be charged in EUR, not converted from USD by a customer's bank.
 
 The first implementation is explicitly test-only. `BILLING_PROVIDER=stripe_test` requires Clerk and Stripe test credentials, a separate database endpoint, and localhost or a preview deployment. Production continues using Clerk Billing and must not enable this mode. No existing subscription is migrated or repriced.

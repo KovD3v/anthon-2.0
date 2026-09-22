@@ -31,7 +31,12 @@ vi.mock("@stripe/react-stripe-js/checkout", () => ({
   PaymentElement: () => <div>Carta Stripe</div>,
 }));
 
-const plan = { key: "basic" as const, name: "Basic", amount: 1999 };
+const plan = {
+  key: "basic" as const,
+  name: "Basic",
+  amount: 1999,
+  interval: "month" as const,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -59,7 +64,7 @@ describe("Custom test checkout", () => {
   it("does not create a checkout without a test publishable key", () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
-    render(<CheckoutClient plan={plan} />);
+    render(<CheckoutClient plan={plan} testMode />);
     expect(screen.getByRole("alert").textContent).toContain(
       "non è ancora configurato",
     );
@@ -73,7 +78,7 @@ describe("Custom test checkout", () => {
     });
     mocks.remove.mockResolvedValue({ type: "success" });
     const user = userEvent.setup();
-    render(<CheckoutForm plan={plan} />);
+    render(<CheckoutForm plan={plan} testMode />);
     expect(
       screen.getByText("Totale oggi").nextElementSibling?.textContent,
     ).toBe("14,99 €");
@@ -96,7 +101,7 @@ describe("Custom test checkout", () => {
       })
       .mockResolvedValueOnce({ type: "success" });
     const user = userEvent.setup();
-    render(<CheckoutForm plan={plan} />);
+    render(<CheckoutForm plan={plan} testMode />);
     await user.click(screen.getByRole("button", { name: /Abbonati/ }));
     expect(screen.getByRole("alert").textContent).toBe("Carta rifiutata");
     expect(mocks.replace).not.toHaveBeenCalled();
@@ -113,10 +118,42 @@ describe("Custom test checkout", () => {
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
 
-  it("refuses live or non-EUR checkout sessions", () => {
+  it("refuses non-EUR checkout sessions", () => {
     mocks.checkout.current.currency = "usd";
-    render(<CheckoutForm plan={plan} />);
+    render(<CheckoutForm plan={plan} testMode />);
     expect(screen.getByRole("alert")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Abbonati/ })).toBeNull();
+  });
+
+  it.each([true, false])(
+    "rejects a checkout from the wrong mode, test=%s",
+    (testMode) => {
+      mocks.checkout.current.livemode = testMode;
+      render(<CheckoutForm plan={plan} testMode={testMode} />);
+      expect(screen.getByRole("alert")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Abbonati/ })).toBeNull();
+    },
+  );
+
+  it("accepts live annual checkout and hides monthly promotions", () => {
+    mocks.checkout.current.livemode = true;
+    mocks.checkout.current.discountAmounts = [];
+    mocks.checkout.current.total = { total: { amount: "199,99 €" } };
+    mocks.checkout.current.recurring = {
+      dueNext: { total: { amount: "199,99 €" } },
+    };
+    render(
+      <CheckoutForm
+        plan={{ ...plan, key: "basic_annual", amount: 19999, interval: "year" }}
+        testMode={false}
+      />,
+    );
+    expect(
+      screen.getByText("Dal prossimo anno").nextElementSibling?.textContent,
+    ).toBe("199,99 €");
+    expect(screen.queryByLabelText("Codice promozionale")).toBeNull();
+    expect(screen.getByText(/Addebito annuale anticipato/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Abbonati/ })).toBeTruthy();
+    expect(screen.queryByText(/Pagamento di test/)).toBeNull();
   });
 });

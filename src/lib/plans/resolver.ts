@@ -1,4 +1,4 @@
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling } from "@/lib/billing/config";
 import type {
   EntitlementLimits,
   OrganizationModelTier,
@@ -51,8 +51,12 @@ export function resolvePersonalPlan(input: PlanResolutionInput): CanonicalPlan {
   }
 
   if (input.subscriptionStatus === "ACTIVE") {
-    const isStripePlan = input.planId?.startsWith("stripe_test:") ?? false;
-    if (isStripePlan !== isStripeTestBilling()) {
+    const isStripePlan = /^stripe_(test|live):/.test(input.planId ?? "");
+    if (
+      isStripeBilling()
+        ? !input.planId?.startsWith(`${process.env.BILLING_PROVIDER}:`)
+        : isStripePlan
+    ) {
       throw new PlanResolutionError("PAID_ACCESS_REQUIRED");
     }
     const parsed = parseCanonicalPlanFromPlanId(input.planId);

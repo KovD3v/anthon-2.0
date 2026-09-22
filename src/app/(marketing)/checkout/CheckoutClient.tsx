@@ -15,14 +15,25 @@ import { Input } from "@/components/ui/input";
 import type { StripePlanKey } from "@/lib/billing/stripe-catalog";
 import { getStripeTestClient } from "@/lib/billing/stripe-client";
 
-type Plan = { key: StripePlanKey; name: string; amount: number };
+type Plan = {
+  key: StripePlanKey;
+  name: string;
+  amount: number;
+  interval: "month" | "year";
+};
 const euros = (amount: number) =>
   new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(
     amount / 100,
   );
 const returnPath = "/profile?tab=billing&checkout=complete";
 
-export function CheckoutClient({ plan }: { plan: Plan }) {
+export function CheckoutClient({
+  plan,
+  testMode,
+}: {
+  plan: Plan;
+  testMode: boolean;
+}) {
   const router = useRouter();
   const { resolvedTheme } = useTheme();
   const [stripe] = useState(getStripeTestClient);
@@ -75,8 +86,8 @@ export function CheckoutClient({ plan }: { plan: Plan }) {
   if (!stripe)
     return (
       <p role="alert">
-        Il pagamento di test non è ancora configurato. Torna ai piani e riprova
-        più tardi.
+        Il pagamento non è ancora configurato. Torna ai piani e riprova più
+        tardi.
       </p>
     );
   if (error)
@@ -115,12 +126,18 @@ export function CheckoutClient({ plan }: { plan: Plan }) {
         },
       }}
     >
-      <CheckoutForm plan={plan} />
+      <CheckoutForm plan={plan} testMode={testMode} />
     </CheckoutElementsProvider>
   );
 }
 
-export function CheckoutForm({ plan }: { plan: Plan }) {
+export function CheckoutForm({
+  plan,
+  testMode,
+}: {
+  plan: Plan;
+  testMode: boolean;
+}) {
   const state = useCheckoutElements();
   const router = useRouter();
   const [code, setCode] = useState("");
@@ -131,11 +148,9 @@ export function CheckoutForm({ plan }: { plan: Plan }) {
   if (state.type === "error")
     return <p role="alert">{state.error.message} Torna ai piani e riprova.</p>;
   const { checkout } = state;
-  if (checkout.livemode || checkout.currency !== "eur")
+  if (checkout.livemode !== !testMode || checkout.currency !== "eur")
     return (
-      <p role="alert">
-        Questo checkout non è disponibile nell’ambiente di test.
-      </p>
+      <p role="alert">Questo checkout non è disponibile in questo ambiente.</p>
     );
 
   async function discount(remove = false) {
@@ -185,11 +200,15 @@ export function CheckoutForm({ plan }: { plan: Plan }) {
         </h2>
         <p className="mt-3 text-xl">
           {euros(plan.amount)}{" "}
-          <span className="text-sm text-muted-foreground">al mese</span>
+          <span className="text-sm text-muted-foreground">
+            {plan.interval === "year" ? "all’anno" : "al mese"}
+          </span>
         </p>
         <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-          Rinnovo mensile automatico. Puoi disdire il rinnovo dalle impostazioni
-          del tuo abbonamento.
+          {plan.interval === "year"
+            ? "Addebito annuale anticipato e rinnovo annuale automatico."
+            : "Rinnovo mensile automatico."}{" "}
+          Puoi disdire il rinnovo dalle impostazioni del tuo abbonamento.
         </p>
         <dl className="mt-8 space-y-4 border-y border-border py-6 text-sm">
           {checkout.discountAmounts?.map((discount) => (
@@ -206,55 +225,61 @@ export function CheckoutForm({ plan }: { plan: Plan }) {
             <dd aria-live="polite">{checkout.total.total.amount}</dd>
           </div>
           <div className="flex justify-between gap-4 text-muted-foreground">
-            <dt>Dal prossimo mese</dt>
+            <dt>
+              {plan.interval === "year"
+                ? "Dal prossimo anno"
+                : "Dal prossimo mese"}
+            </dt>
             <dd>
               {checkout.recurring?.dueNext.total.amount ?? euros(plan.amount)}
             </dd>
           </div>
         </dl>
-        <form
-          className="mt-6"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void discount();
-          }}
-        >
-          <label htmlFor="promotion-code" className="text-sm font-medium">
-            Codice promozionale
-          </label>
-          <div className="mt-2 flex gap-2">
-            <Input
-              id="promotion-code"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              autoCapitalize="characters"
-              disabled={pending !== null}
-              className="min-h-11"
-            />
-            <Button
-              variant="outline"
-              type="submit"
-              disabled={pending !== null || !code.trim()}
-            >
-              Applica
-            </Button>
-          </div>
-          {checkout.discountAmounts?.some((item) => item.promotionCode) && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="mt-2"
-              disabled={pending !== null}
-              onClick={() => void discount(true)}
-            >
-              Rimuovi codice
-            </Button>
-          )}
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            LANCIO5: 5 € di sconto sul primo mese, solo per nuovi clienti ed
-            entro la scadenza del codice.
-          </p>
-        </form>
+        {plan.interval === "month" && (
+          <form
+            className="mt-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void discount();
+            }}
+          >
+            <label htmlFor="promotion-code" className="text-sm font-medium">
+              Codice promozionale
+            </label>
+            <div className="mt-2 flex gap-2">
+              <Input
+                id="promotion-code"
+                value={code}
+                onChange={(event) => setCode(event.target.value)}
+                autoCapitalize="characters"
+                disabled={pending !== null}
+                className="min-h-11"
+              />
+              <Button
+                variant="outline"
+                type="submit"
+                disabled={pending !== null || !code.trim()}
+              >
+                Applica
+              </Button>
+            </div>
+            {checkout.discountAmounts?.some((item) => item.promotionCode) && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="mt-2"
+                disabled={pending !== null}
+                onClick={() => void discount(true)}
+              >
+                Rimuovi codice
+              </Button>
+            )}
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              LANCIO5: 5 € di sconto sul primo mese per i nuovi abbonati entro
+              30 giorni dal lancio. Esclusi i piani annuali.
+            </p>
+          </form>
+        )}
       </section>
       <form onSubmit={pay} className="min-w-0 space-y-6" aria-label="Pagamento">
         <h2 className="text-xl font-semibold">Dati di pagamento</h2>
@@ -286,7 +311,9 @@ export function CheckoutForm({ plan }: { plan: Plan }) {
             : `Abbonati · ${checkout.total.total.amount}`}
         </Button>
         <p className="text-xs text-muted-foreground">
-          Pagamento di test elaborato da Stripe.
+          {testMode
+            ? "Pagamento di test elaborato da Stripe."
+            : "Pagamento elaborato da Stripe."}
         </p>
       </form>
     </div>

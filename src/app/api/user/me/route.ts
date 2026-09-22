@@ -7,7 +7,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { invalidateAllDerivedCachesForUser } from "@/lib/ai/deletion-lifecycle";
 import { getAuthUser } from "@/lib/auth";
-import { isStripeTestBilling } from "@/lib/billing/config";
+import { isStripeBilling } from "@/lib/billing/config";
 import { prisma } from "@/lib/db";
 import { createLogger } from "@/lib/logger";
 import { deletePrivateVoiceBlobsForMessages } from "@/lib/voice/attachment-cleanup";
@@ -36,7 +36,7 @@ export async function DELETE() {
       await prisma.user.delete({ where: { id: user.id } });
       invalidateAllDerivedCachesForUser(user.id);
     };
-    if (isStripeTestBilling()) {
+    if (isStripeBilling()) {
       const { withStripeAccountDeletion } = await import(
         "@/lib/billing/stripe"
       );

@@ -37,6 +37,12 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 
+it("accepts signed live events only in live mode", async () => {
+  vi.stubEnv("BILLING_PROVIDER", "stripe_live");
+  expect((await POST(request(false))).status).toBe(400);
+  expect((await POST(request(true))).status).toBe(200);
+});
+
 it("verifies the raw signature, rejects live events, and reports failures for Stripe retries", async () => {
   expect((await POST(request(false, true))).status).toBe(400);
   expect((await POST(request(true))).status).toBe(400);

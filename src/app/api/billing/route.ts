@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getAuthUser } from "@/lib/auth";
-import { getStripeTestOrigin, isStripeTestBilling } from "@/lib/billing/config";
+import { getStripeOrigin, isStripeBilling } from "@/lib/billing/config";
 import {
   confirmStripePaymentMethod,
   createStripeCheckout,
@@ -16,7 +16,14 @@ const input = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("checkout"),
-      plan: z.enum(["basic", "basic_plus"]),
+      plan: z.enum([
+        "basic",
+        "basic_plus",
+        "pro",
+        "basic_annual",
+        "basic_plus_annual",
+        "pro_annual",
+      ]),
     })
     .strict(),
   z.object({ action: z.literal("cancel") }).strict(),
@@ -36,8 +43,7 @@ const input = z.discriminatedUnion("action", [
 
 export async function GET() {
   const headers = { "Cache-Control": "private, no-store" };
-  if (!isStripeTestBilling())
-    return new Response(null, { status: 404, headers });
+  if (!isStripeBilling()) return new Response(null, { status: 404, headers });
   try {
     const { user } = await getAuthUser();
     if (!user || user.isGuest)
@@ -49,20 +55,20 @@ export async function GET() {
   } catch (error) {
     logger.error(
       "billing.stripe.summary_failed",
-      "Stripe test billing summary failed",
+      "Stripe billing summary failed",
       { error },
     );
     return Response.json(
-      { error: "Fatturazione di test non disponibile. Riprova tra poco." },
+      { error: "Fatturazione non disponibile. Riprova tra poco." },
       { status: 503, headers },
     );
   }
 }
 
 export async function POST(request: Request) {
-  if (!isStripeTestBilling()) return new Response(null, { status: 404 });
+  if (!isStripeBilling()) return new Response(null, { status: 404 });
   try {
-    if (request.headers.get("origin") !== getStripeTestOrigin()) {
+    if (request.headers.get("origin") !== getStripeOrigin()) {
       return Response.json(
         { error: "Origine non consentita." },
         { status: 403 },
@@ -104,11 +110,11 @@ export async function POST(request: Request) {
   } catch (error) {
     logger.error(
       "billing.stripe.request_failed",
-      "Stripe test billing request failed",
+      "Stripe billing request failed",
       { error },
     );
     return Response.json(
-      { error: "Fatturazione di test non disponibile. Riprova tra poco." },
+      { error: "Fatturazione non disponibile. Riprova tra poco." },
       { status: 503 },
     );
   }
