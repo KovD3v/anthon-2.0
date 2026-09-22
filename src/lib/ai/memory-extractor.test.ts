@@ -123,6 +123,54 @@ describe("ai/memory-extractor", () => {
     });
   });
 
+  it("specifies the category contract and rejects invented category labels", async () => {
+    const input = {
+      userId: "user-1",
+      userText: "Prima di ogni presentazione preparo tre domande.",
+      assistantText: "Ricevuto.",
+    };
+    mocks.generateText.mockResolvedValue({
+      text: JSON.stringify({
+        facts: [
+          {
+            key: "presentation_preparation",
+            value: input.userText,
+            category: "PREPARAZIONE_PRESENTAZIONE",
+            confidence: 0.9,
+            sensitivity: "LOW",
+            origin: "EXPLICIT",
+            explicitSetting: false,
+            durability: "DURABLE",
+            expiry: null,
+            evidence: input.userText,
+            subject: "ACCOUNT_HOLDER",
+            subjectName: null,
+            subjectRelationship: null,
+          },
+        ],
+      }),
+      usage: {},
+    });
+    await expect(extractMemoryCandidates(input)).resolves.toEqual([]);
+    expect(mocks.loggerWarn).toHaveBeenCalled();
+    const instructions = mocks.generateText.mock.calls[0][0].instructions;
+    for (const category of [
+      "identity",
+      "sport",
+      "goal",
+      "preference",
+      "health",
+      "diagnosis",
+      "trauma",
+      "intimate",
+      "schedule",
+      "conversation_topic",
+      "other",
+    ]) {
+      expect(instructions).toContain(`"${category}"`);
+    }
+  });
+
   it("retains a supported temporary event and its literal date for server resolution", async () => {
     mocks.generateText.mockResolvedValue({
       text: JSON.stringify({

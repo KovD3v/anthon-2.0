@@ -188,6 +188,8 @@ export function resolveMemoryExpiry(input: {
       /(?:t| alle | at | )(\d{2}):(\d{2})(?::(\d{2}))?$/,
     );
     if (time) dateText = dateText.slice(0, time.index).trim();
+    // Whole-day inclusion already matches the following-local-midnight policy.
+    dateText = dateText.replace(/ (?:inclusive|inclus[oa])$/, "");
     const source = calendarParts(input.observedAt, timeZone);
     let dateParts: number[] | null = null;
     if (/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {

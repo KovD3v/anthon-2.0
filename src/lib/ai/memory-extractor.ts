@@ -117,6 +117,14 @@ Non inventare anno, fuso, durata o data di revisione. Date ambigue come "venerd�
 prossimo" richiedono chiarimento; non troncare l'espressione per renderla valida.
 I fatti temporanei usano chiavi contestuali specifiche, mai campi di profilo o preferenze.
 Il valore deve indicare l'evento o piano, non trasformarlo in una caratteristica permanente.
+Per ogni fatto contestuale usa una key snake_case specifica dell'attività o situazione,
+non una categoria generica come schedule, health o other. Identifica il tema del fatto,
+non il suo valore variabile: non mettere nella key il giorno o la data aggiornati.
+Per ogni fatto contestuale, value deve essere una frase completa e comprensibile
+senza leggere key: conserva l'attività o situazione e il dettaglio attribuito.
+Per un orario o una correzione scrivi quale attività avviene quando; per una
+scadenza scrivi quale evento o piano termina. Non restituire soltanto un giorno,
+una data o un numero. Conserva soltanto i dettagli presenti nel testo utente.
 I fatti durevoli usano DURABLE con expiry null; i normali dettagli del momento senza
 utilità futura sono TRANSIENT. Un fuso personale esplicito usa user_timezone e valore IANA.
 explicitSetting è true soltanto per
@@ -125,6 +133,10 @@ trauma, sfera intima o fatti ad alto impatto. Salva anche i fatti durevoli su al
 persone citate dall'utente: usa REFERENCED_PERSON e riporta il nome e la relazione
 quando sono espliciti. Usa ACCOUNT_HOLDER solo per fatti sull'utente. Non inventare
 e non completare dettagli.
+category deve essere uno dei seguenti valori, esattamente in minuscolo:
+${MemoryCandidateSchema.shape.category.options.map((category) => JSON.stringify(category)).join(", ")}.
+Usa "other" per abitudini o fatti che non rientrano nelle altre categorie; non inventare categorie.
+Restituisci un oggetto con la proprietà facts, mai un array alla radice.
 Restituisci solo JSON valido: {"facts":[{"key":"snake_case","value":"...",
 "category":"...","confidence":0.9,"sensitivity":"LOW|HIGH",
 "origin":"EXPLICIT|INFERRED","explicitSetting":false,

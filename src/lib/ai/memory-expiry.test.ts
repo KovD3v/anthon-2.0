@@ -80,6 +80,15 @@ describe("temporary memory date resolution", () => {
   });
 
   it.each([
+    ["15 March 2027 inclusive", "2027-03-15T23:00:00.000Z"],
+    ["15 marzo 2027 incluso", "2027-03-15T23:00:00.000Z"],
+    ["domenica inclusa", "2026-09-20T22:00:00.000Z"],
+    ["2026-10-25 inclusive", "2026-10-25T23:00:00.000Z"],
+  ])("keeps the full local day for %s", (expression, expected) => {
+    expect(resolve(expression)?.toISOString()).toBe(expected);
+  });
+
+  it.each([
     ["Esame domani alle 18:00", "domani"],
     ["Exam tomorrow at 18:00", "tomorrow"],
     ["Exam Friday, at 18:00", "Friday"],
@@ -132,6 +141,9 @@ describe("temporary memory date resolution", () => {
     "2026-02-30",
     "2026-09-18",
     "tomorrow at 25:00",
+    "next Friday inclusive",
+    "15 March 2027 exclusive",
+    "2027-02-30 inclusive",
   ])("skips ambiguous, invalid or expired date %s", (expression) => {
     expect(resolve(expression)).toBeNull();
   });
