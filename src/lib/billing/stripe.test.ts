@@ -600,6 +600,21 @@ describe("isolated Stripe billing", () => {
     }
   });
 
+  it("records the sync time without calling Stripe for users without a customer", async () => {
+    mocks.findSubscription.mockResolvedValueOnce(null);
+    expect(await syncPersonalSubscriptionFromStripe("user-1")).toEqual({
+      status: "EXPIRED",
+      planId: null,
+    });
+    expect(mocks.prices).not.toHaveBeenCalled();
+    expect(mocks.subscriptions).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { billingSyncedAt: expect.any(Date) },
+    });
+  });
+
   it("reconciles current state for duplicate and out-of-order signed events", async () => {
     mocks.subscriptions.mockResolvedValue({
       data: [activeSubscription],

@@ -6,6 +6,7 @@ import {
   invalidateConversationRecallEvidence,
 } from "./conversation-recall";
 import { invalidateFactCache } from "./memory-facts";
+import { lockThreadSummaries } from "./thread-summary-lifecycle";
 
 type DeletionMessage = {
   id: string;
@@ -86,7 +87,6 @@ export async function cleanupDerivedDataForMessagesInTransaction(
   if (messages.length === 0) return emptyDeletionResult();
 
   const messageIds = messages.map((message) => message.id);
-  await lockMessagesForDeletion(transaction, messageIds);
   const userIds = [...new Set(messages.map((message) => message.userId))];
   const threadIds = [
     ...new Set(
@@ -95,6 +95,10 @@ export async function cleanupDerivedDataForMessagesInTransaction(
         .filter((id): id is string => Boolean(id)),
     ),
   ];
+  // Summary commits hold the thread lock while checking their sources, so
+  // take it first (same order) to keep a summary of deleted messages out.
+  await lockThreadSummaries(transaction, threadIds);
+  await lockMessagesForDeletion(transaction, messageIds);
 
   // A source thread is only a fallback for legacy/thread-only facts. When a
   // current source message survives a suffix deletion, its fact survives too,

@@ -125,8 +125,14 @@ describe("deletion lifecycle", () => {
 
     expect(result.count).toBe(2);
     expect(mocks.transaction).toHaveBeenCalledOnce();
-    expect(mocks.queryRaw).toHaveBeenCalledOnce();
-    expect(mocks.queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+    // Thread lock first, matching the summary commit's lock order, then the
+    // message rows; both before any derived record is read.
+    expect(mocks.queryRaw).toHaveBeenCalledTimes(2);
+    const [[threadLock], [messageLock]] = mocks.queryRaw.mock.calls;
+    expect(threadLock.sql).toContain('FROM "ConversationThread"');
+    expect(threadLock.values).toEqual(["thread-1"]);
+    expect(messageLock.sql).toContain('FROM "Message"');
+    expect(mocks.queryRaw.mock.invocationCallOrder[1]).toBeLessThan(
       mocks.memoryFindMany.mock.invocationCallOrder[0] ??
         Number.POSITIVE_INFINITY,
     );

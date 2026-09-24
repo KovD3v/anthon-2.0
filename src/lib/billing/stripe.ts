@@ -345,7 +345,6 @@ export function stripeSubscriptionState(
 
 export async function syncPersonalSubscriptionFromStripe(userId: string) {
   const stripe = getStripe();
-  const prices = await getStripeTestPrices(stripe);
   return withUserLock(userId, async (tx) => {
     const current = await tx.subscription.findUnique({ where: { userId } });
     if (!current?.stripeCustomerId) {
@@ -354,8 +353,14 @@ export async function syncPersonalSubscriptionFromStripe(userId: string) {
           where: { userId },
           data: { status: "EXPIRED", planId: null },
         });
+      // Users without a Stripe customer must still honor the sync cooldown.
+      await tx.user.update({
+        where: { id: userId },
+        data: { billingSyncedAt: new Date() },
+      });
       return { status: "EXPIRED" as const, planId: null };
     }
+    const prices = await getStripeTestPrices(stripe);
     const subscriptions = await subscriptionsForCustomer(
       stripe,
       current.stripeCustomerId,

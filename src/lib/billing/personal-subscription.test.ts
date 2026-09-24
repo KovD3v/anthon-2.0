@@ -58,6 +58,28 @@ describe("syncPersonalSubscription", () => {
     expect(mocks.clerkClient).not.toHaveBeenCalled();
     expect(mocks.stripeSync).toHaveBeenCalledWith("user-1");
   });
+
+  it("falls back to current state and backs off when Stripe sync fails", async () => {
+    vi.stubEnv("BILLING_PROVIDER", "stripe_test");
+    mocks.stripeSync.mockRejectedValueOnce(new Error("Stripe rate limited"));
+    const current = { status: "ACTIVE" as const, planId: "stripe_test:basic" };
+    expect(
+      await syncPersonalSubscription({
+        userId: "user-1",
+        clerkUserId: "clerk_1",
+        current,
+      }),
+    ).toEqual(current);
+    expect(mocks.loggerWarn).toHaveBeenCalledWith(
+      "billing.subscription.sync_failed",
+      expect.any(String),
+      expect.objectContaining({ userId: "user-1" }),
+    );
+    expect(mocks.userUpdate).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { billingSyncedAt: expect.any(Date) },
+    });
+  });
   beforeEach(() => {
     mocks.clerkClient.mockReset();
     mocks.getUserBillingSubscription.mockReset();

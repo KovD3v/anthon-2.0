@@ -210,12 +210,33 @@ export async function syncPersonalSubscription(params: {
   clerkUserId: string;
   current?: CurrentSubscriptionState | null;
 }): Promise<CurrentSubscriptionState | null> {
-  if (isStripeBilling()) {
-    const { syncPersonalSubscriptionFromStripe } = await import("./stripe");
-    return syncPersonalSubscriptionFromStripe(params.userId);
-  }
   const { userId, clerkUserId, current } = params;
   const syncAttemptedAt = new Date();
+
+  if (isStripeBilling()) {
+    try {
+      const { syncPersonalSubscriptionFromStripe } = await import("./stripe");
+      return await syncPersonalSubscriptionFromStripe(userId);
+    } catch (error) {
+      billingLogger.warn(
+        "billing.subscription.sync_failed",
+        "Failed syncing personal subscription from Stripe",
+        { error, userId },
+      );
+      // Back off like the Clerk path so a Stripe outage cannot fail every
+      // request or retry on each one.
+      try {
+        await markBillingSyncedAt(userId, syncAttemptedAt);
+      } catch (markError) {
+        billingLogger.warn(
+          "billing.sync_timestamp_update_failed",
+          "Failed updating billing sync timestamp",
+          { error: markError, userId },
+        );
+      }
+      return current ?? null;
+    }
+  }
 
   try {
     const client = await clerkClient();
