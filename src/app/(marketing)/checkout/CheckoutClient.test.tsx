@@ -108,7 +108,6 @@ describe("Custom test checkout", () => {
     await user.click(screen.getByRole("button", { name: /Abbonati/ }));
     expect(mocks.confirm).toHaveBeenCalledWith({
       redirect: "if_required",
-      returnUrl: `${window.location.origin}/profile?tab=billing&checkout=complete`,
     });
     await waitFor(() =>
       expect(mocks.replace).toHaveBeenCalledWith(

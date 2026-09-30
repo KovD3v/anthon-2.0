@@ -177,7 +177,6 @@ export function CheckoutForm({
     try {
       const result = await checkout.confirm({
         redirect: "if_required",
-        returnUrl: `${window.location.origin}${returnPath}`,
       });
       if (result.type === "error") {
         setError(result.error.message);
