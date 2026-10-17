@@ -105,7 +105,10 @@ const WEB_SEARCH_DEFAULT_RESULTS = 4;
 const WEB_SEARCH_DEFAULT_SNIPPET_CHARS = 180;
 const WEB_SEARCH_BRIEF_RESULTS = 3;
 const WEB_SEARCH_BRIEF_SNIPPET_CHARS = 160;
-const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 120;
+// Safety ceilings only: the prompts keep answers brief. A ceiling that a
+// normal answer can reach truncates it mid-sentence.
+const WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS = 600;
+const GUEST_MAX_OUTPUT_TOKENS = 1_000;
 
 function modelMessageContentToText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -2395,7 +2398,7 @@ export async function streamChat({
     maxOutputTokens: directWebSearchEvidence
       ? WEB_SEARCH_DIRECT_MAX_OUTPUT_TOKENS
       : isGuest
-        ? 220
+        ? GUEST_MAX_OUTPUT_TOKENS
         : undefined,
     providerOptions: {
       openrouter: {

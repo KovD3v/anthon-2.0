@@ -407,6 +407,21 @@ describe("ai/orchestrator", () => {
     );
   });
 
+  it("lets a guest plan finish instead of cutting it at a few sentences", async () => {
+    await streamChat({
+      userId: "synthetic-user",
+      chatId: "synthetic-chat",
+      userMessage:
+        "Ho una gara domani. Aiutami a preparare una routine mentale breve.",
+      isGuest: true,
+      effectiveEntitlements: entitlements,
+    });
+    const streamInput = mocks.streamText.mock.calls.at(-1)?.[0] as {
+      maxOutputTokens?: number;
+    };
+    expect(streamInput.maxOutputTokens).toBeGreaterThanOrEqual(1_000);
+  });
+
   it.each([false, true])(
     "uses the same scope and grouped-question policy for guest=%s",
     async (isGuest) => {
