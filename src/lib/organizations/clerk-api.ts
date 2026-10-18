@@ -75,10 +75,18 @@ export async function createClerkOrganization(input: {
 export async function deleteClerkOrganization(input: {
   clerkOrganizationId: string;
 }): Promise<void> {
-  await callClerkMethod(["deleteOrganization", "delete"], {
-    organizationId: input.clerkOrganizationId,
-    id: input.clerkOrganizationId,
-  });
+  const organizationsApi = await getClerkOrgsApi();
+  const deleteOrganization = organizationsApi.deleteOrganization;
+  if (typeof deleteOrganization !== "function") {
+    throw new Error("No compatible Clerk method found (deleteOrganization)");
+  }
+  // The SDK takes the bare id; an object becomes "/organizations/[object Object]".
+  await (
+    deleteOrganization as (
+      this: Record<string, unknown>,
+      organizationId: string,
+    ) => Promise<unknown>
+  ).call(organizationsApi, input.clerkOrganizationId);
 }
 
 export async function updateClerkOrganization(input: {
