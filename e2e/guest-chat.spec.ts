@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import type { ChatData } from "../src/types/chat";
 
 async function openEmptyGuestChat(page: Page) {
   await page.goto("/chat");
@@ -18,6 +19,7 @@ async function sendMessage(page: Page, text: string) {
 
 async function waitForResponsePersisted(page: Page, text: string) {
   const response = page
+    .getByRole("main")
     .locator('[data-message-role="assistant"]')
     .filter({ hasText: text });
   await expect(
@@ -62,7 +64,9 @@ test.describe("guest chat smoke", () => {
     const firstPrompt = "Primo turno consecutivo E2E";
     await sendMessage(page, firstPrompt);
     await expect(
-      page.getByText("Risposta E2E completata.", { exact: true }),
+      page
+        .getByRole("main")
+        .getByText("Risposta E2E completata.", { exact: true }),
     ).toBeVisible();
     await waitForResponsePersisted(page, "Risposta E2E completata.");
     const chatUrl = page.url();
@@ -88,41 +92,50 @@ test.describe("guest chat smoke", () => {
     await openEmptyGuestChat(page);
 
     const firstPrompt = "La parola chiave del test è zaffiro. Confermala.";
+    const firstReply = "Ho memorizzato la parola chiave zaffiro.";
+    // React streaming can stage the same markup in hidden S:* containers.
+    // Assert within the accessible conversation and still reject live duplicates.
+    const conversation = page.getByRole("main");
+    const firstUserMessage = conversation
+      .locator('[data-message-role="user"]')
+      .getByText(firstPrompt, { exact: true });
+    const firstAssistantMessage = conversation
+      .locator('[data-message-role="assistant"]')
+      .getByText(firstReply, { exact: true });
     await sendMessage(page, firstPrompt);
 
-    await expect(
-      page
-        .locator('[data-message-role="user"]')
-        .getByText(firstPrompt, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Ho memorizzato la parola chiave zaffiro.", {
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(firstUserMessage).toHaveCount(1);
+    await expect(firstUserMessage).toBeVisible();
+    await expect(firstAssistantMessage).toHaveCount(1);
+    await expect(firstAssistantMessage).toBeVisible();
     await waitForResponsePersisted(
       page,
       "Ho memorizzato la parola chiave zaffiro.",
     );
 
     await page.reload();
-    await expect(
-      page
-        .locator('[data-message-role="user"]')
-        .getByText(firstPrompt, { exact: true }),
-    ).toBeVisible();
-    await expect(
-      page.getByText("Ho memorizzato la parola chiave zaffiro.", {
-        exact: true,
-      }),
-    ).toBeVisible();
+    await expect(firstUserMessage).toHaveCount(1);
+    await expect(firstUserMessage).toBeVisible();
+    await expect(firstAssistantMessage).toHaveCount(1);
+    await expect(firstAssistantMessage).toBeVisible();
+
+    const chatId = new URL(page.url()).pathname.split("/").at(-1);
+    const storedResponse = await page.request.get(`/api/guest/chats/${chatId}`);
+    await expect(storedResponse).toBeOK();
+    const storedChat = (await storedResponse.json()) as ChatData;
+    expect(
+      storedChat.messages.map(({ role, content }) => ({ role, content })),
+    ).toEqual([
+      { role: "user", content: firstPrompt },
+      { role: "assistant", content: firstReply },
+    ]);
 
     await sendMessage(page, "Qual era la parola chiave?");
     await expect(
-      page.getByText("La parola chiave era zaffiro.", { exact: true }),
+      conversation.getByText("La parola chiave era zaffiro.", { exact: true }),
     ).toBeVisible();
 
-    const contextualResponse = page
+    const contextualResponse = conversation
       .locator('[data-message-role="assistant"]')
       .filter({ hasText: "La parola chiave era zaffiro." });
     const usefulButton = contextualResponse.getByRole("button", {
@@ -138,7 +151,14 @@ test.describe("guest chat smoke", () => {
     await expect(usefulButton).toHaveAttribute("aria-pressed", "true");
 
     await page.reload();
-    const restoredContextualResponse = page
+    await expect(firstUserMessage).toHaveCount(1);
+    await expect(
+      conversation.locator('[data-message-role="user"]'),
+    ).toHaveCount(2);
+    await expect(
+      conversation.locator('[data-message-role="assistant"]'),
+    ).toHaveCount(2);
+    const restoredContextualResponse = conversation
       .locator('[data-message-role="assistant"]')
       .filter({ hasText: "La parola chiave era zaffiro." });
     await expect(
@@ -186,7 +206,9 @@ test.describe("guest chat smoke", () => {
     await page.unroute("**/api/guest/chat");
     await sendMessage(page, "recupero-e2e");
     await expect(
-      page.getByText("Il flusso è di nuovo operativo.", { exact: true }),
+      page
+        .getByRole("main")
+        .getByText("Il flusso è di nuovo operativo.", { exact: true }),
     ).toBeVisible();
   });
 });
