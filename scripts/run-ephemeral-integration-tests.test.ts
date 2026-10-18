@@ -230,6 +230,22 @@ describe("ephemeral Neon integration runner", () => {
     });
   });
 
+  it.each([undefined, "live-search-secret"])(
+    "uses a dummy search credential when the parent key is %s",
+    (apiKey) => {
+      const env = buildE2EProcessEnv({
+        childProcessEnv: {
+          NODE_ENV: "test",
+          TINYFISH_API_KEY: apiKey,
+        },
+        testDatabaseUrl: "ephemeral-url",
+        branchId: "br-e2e",
+      });
+
+      expect(env.TINYFISH_API_KEY).toBe("e2e-local-key");
+    },
+  );
+
   it("configures the isolated instant-navigation production rig", () => {
     const env = buildE2EProcessEnv({
       childProcessEnv: {

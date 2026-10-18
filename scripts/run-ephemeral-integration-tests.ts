@@ -182,6 +182,8 @@ export function buildE2EProcessEnv({
     E2E_AUTH_CLERK_ID: "e2e-playwright-user",
     E2E_AUTH_SECRET: randomBytes(32).toString("hex"),
     OPENROUTER_API_KEY: "e2e-local-key",
+    // The local model emits text only, but tool construction requires a key.
+    TINYFISH_API_KEY: "e2e-local-key",
     OPENROUTER_BASE_URL: "http://127.0.0.1:4317/api/v1",
     NEXT_PUBLIC_APP_URL: appUrl,
     // Every Playwright test gets a fresh guest, while all local requests share
