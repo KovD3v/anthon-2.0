@@ -126,6 +126,8 @@ Runtime DB URLs:
 
 ## Verification Expectations
 
+For security or dependency changes, run `scripts/semgrep-scan.sh` (metrics are disabled) and verify each finding before proposing a fix.
+
 For most code changes, run:
 
 ```bash

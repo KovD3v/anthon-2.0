@@ -4,7 +4,9 @@ const ALGORITHM = "aes-256-gcm";
 
 export function encryptAiTurnTracePayload(payload: Record<string, unknown>) {
   const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGORITHM, getTraceKey(), iv);
+  const cipher = createCipheriv(ALGORITHM, getTraceKey(), iv, {
+    authTagLength: 16,
+  });
   const plaintext = Buffer.from(JSON.stringify(payload), "utf8");
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   return { ciphertext, iv, tag: cipher.getAuthTag() };
@@ -22,6 +24,7 @@ export function decryptAiTurnTracePayload(payload: {
     ALGORITHM,
     getTraceKey(),
     payload.payloadIv,
+    { authTagLength: 16 },
   );
   decipher.setAuthTag(Buffer.from(payload.payloadTag));
   const plaintext = Buffer.concat([
