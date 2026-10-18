@@ -30,6 +30,7 @@ bun run dev              # Start dev server
 bun run build            # Prisma generate + Next build (artifact-only)
 bun run vercel:build     # Vercel production: migrations deploy + build
 bun run lint             # Biome check
+bun run typecheck        # Next route types + native TypeScript 7; tools/editor keep TypeScript 5
 bun run format           # Biome format --write
 
 # Testing
