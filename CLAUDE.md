@@ -23,6 +23,7 @@ bunx prisma db seed
 bun run test                         # Unit tests
 bun run test:coverage:unit           # Unit tests with enforced coverage
 bun run test:integration             # Ephemeral-Neon integration suite
+bun run test:emulate                 # Clerk + Vercel Blob flows on local Emulate (see AGENTS.md)
 bun run test:coverage:integration    # Integration suite with coverage
 bun run test:e2e                     # Guest browser suite on ephemeral Neon
 bun run test:all                     # Unit and integration coverage, once each

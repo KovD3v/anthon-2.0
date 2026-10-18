@@ -18,6 +18,7 @@ export default defineConfig({
       "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
       "**/*.performance.test.ts",
       "**/*.integration.test.ts",
+      "**/*.emulate.test.ts",
     ],
     coverage: {
       provider: "v8",
@@ -30,6 +31,8 @@ export default defineConfig({
       },
       exclude: [
         "**/*.integration.test.ts",
+        "**/*.emulate.test.ts",
+        "src/test/emulate/**",
         "src/generated/**",
         "**/*.d.ts",
         "**/node_modules/**",

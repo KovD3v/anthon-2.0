@@ -35,6 +35,7 @@ bun run format           # Biome format --write
 # Testing
 bun run test                         # Unit tests
 bun run test:integration             # Integration tests on an ephemeral Neon branch
+bun run test:emulate                 # Clerk + Vercel Blob flows against local Emulate, offline
 bun run test:coverage:unit           # Unit coverage
 bun run test:coverage:integration    # Integration coverage
 bun run test:all                     # Unit + integration + coverage
@@ -91,6 +92,7 @@ Important AI/chat files:
 - Route handlers should use `Request` unless the local code requires `NextRequest`.
 - Unit tests live in `*.test.ts` or `*.test.tsx` near source files.
 - Integration tests live as `*.integration.test.ts` under `src/app/api/`.
+- Emulate tests live as `*.emulate.test.ts` near source files.
 - Logging goes through `src/lib/logger/`; do not add ad hoc production `console.log`.
 - Secret values in `.env` may be read when needed to run, debug, or verify the app. Do not print or copy secret values into logs, commits, issues, or documentation.
 
@@ -143,6 +145,8 @@ For Telegram or WhatsApp changes, run the relevant webhook/channel tests and any
 
 For schema, auth, billing, or cross-route behavior, consider `bun run test:integration` when the required database is available.
 
+For changes to Clerk Backend API calls, `src/proxy.ts` session handling, or Vercel Blob calls, run `bun run test:emulate`.
+
 For frontend chat UI changes, verify the page in a browser when a dev server can run.
 
 ## Git Rules
@@ -177,6 +181,47 @@ The app can use these external systems:
 - PostHog for analytics.
 
 When an integration is unavailable locally, mock at the boundary used by existing tests instead of weakening production code.
+
+### Local service emulation (Emulate)
+
+[vercel-labs/emulate](https://github.com/vercel-labs/emulate) runs stateful local
+copies of the Clerk Backend API and the Vercel Blob API. The SDKs reach it only
+through their own variables (`CLERK_API_URL`, `VERCEL_BLOB_API_URL`), so
+production code paths do not change.
+
+Use it when a test should exercise the real SDK over HTTP instead of a
+`vi.mock`, because mocks can encode the wrong SDK contract. Emulate caught one:
+`deleteClerkOrganization` passed an object where the SDK expects the id string.
+
+- `bun run test:emulate` starts both emulators in Vitest global setup
+  (`src/test/emulate/`), sets the SDK variables, and runs `*.emulate.test.ts`.
+  It needs no network, credentials, or database; mock `@/lib/db` in these tests.
+- `bun run emulate` keeps the same emulators on ports 4011 (Clerk) and 4000
+  (Blob) and prints the variables, for ad-hoc scripts or `curl`.
+
+Limits; keep the existing approach for each:
+
+- Stripe: Emulate has no subscriptions, invoices, recurring prices, Elements
+  checkout sessions (`ui_mode`, `client_secret`), and its webhook events lack
+  `id` and `livemode`, so anthon's webhook route rejects them. Keep Stripe test
+  mode with `bun run dev:stripe-test` (Stripe CLI listener) and
+  `bun run billing:verify-test`.
+- Clerk: only the Backend API and session-token JWKS are emulated. There is no
+  Frontend API, so browser sign-in with Clerk components does not work against
+  it; browser flows keep the E2E session cookie (`bun run test:e2e`). Clerk
+  webhooks (Svix) are not emulated.
+- Emulate 0.12 sends `application/json; charset=UTF-8`, which
+  `@clerk/backend` reads as text. `src/test/emulate/services.ts` puts a small
+  proxy in front of Clerk that restores `application/json`. Remove it once
+  Emulate sends the bare type.
+- Blob URLs are `http://localhost:4000/blob/...`, not
+  `*.private.blob.vercel-storage.com`, so the private voice-store URL checks in
+  `src/lib/voice/storage.ts` reject them. Multipart and client uploads are not
+  emulated.
+- QStash, Neon, OpenRouter, Telegram, and WhatsApp are not covered by Emulate.
+- A passing Emulate test shows that anthon calls the SDK correctly. It does not
+  prove the real service behaves the same; verify billing and auth changes in
+  the real test environments before release.
 
 Current integration policy:
 
