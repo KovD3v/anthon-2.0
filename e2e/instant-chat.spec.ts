@@ -7,7 +7,10 @@ const CHAT_LAYOUT_SHELL = '[data-testid="chat-layout-shell"]';
 async function createGuestChat(page: Page) {
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "Benvenuto!" })).toBeVisible();
-  await page.getByRole("button", { name: "Conversazione libera" }).click();
+  await page
+    .getByRole("textbox", { name: "Scrivi un messaggio" })
+    .fill("Crea una conversazione E2E");
+  await page.getByRole("button", { name: "Invia messaggio" }).click();
   await expect(page).toHaveURL(/\/chat\/[^/]+$/);
 
   const chatId = new URL(page.url()).pathname.split("/").at(-1);
