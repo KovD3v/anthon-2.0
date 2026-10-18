@@ -111,16 +111,21 @@ describe("organizations/clerk-api", () => {
     ).rejects.toThrow("Clerk organization creation did not return an id");
   });
 
-  it("deleteClerkOrganization forwards both organizationId and id", async () => {
+  it("deleteClerkOrganization passes the bare organization id", async () => {
     const deleteOrganization = vi.fn().mockResolvedValue(undefined);
     setOrganizationsApi({ deleteOrganization });
 
     await deleteClerkOrganization({ clerkOrganizationId: "org_delete" });
 
-    expect(deleteOrganization).toHaveBeenCalledWith({
-      organizationId: "org_delete",
-      id: "org_delete",
-    });
+    expect(deleteOrganization).toHaveBeenCalledWith("org_delete");
+  });
+
+  it("deleteClerkOrganization fails when the SDK lacks deleteOrganization", async () => {
+    setOrganizationsApi({});
+
+    await expect(
+      deleteClerkOrganization({ clerkOrganizationId: "org_delete" }),
+    ).rejects.toThrow("No compatible Clerk method found (deleteOrganization)");
   });
 
   it("updateClerkOrganization supports two-argument SDK signature", async () => {
